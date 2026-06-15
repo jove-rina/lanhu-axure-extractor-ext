@@ -250,26 +250,21 @@
 
     // 容器导航：父级 / 子级（事件代理方式）
     floater.addEventListener('click', (e) => {
-      // 测试：不管什么点击都打印
-      console.log('[蓝湖] CLICK', e.target.id);
       if (e.target.id === '__lh_f_up' || e.target.id === '__lh_f_dn') {
         e.stopPropagation();
         const isUp = e.target.id === '__lh_f_up';
-        console.log('[蓝湖] NAV', isUp ? 'UP' : 'DN');
+        console.log('[蓝湖]', isUp ? '↑父级' : '↓子级');
 
-        // 直接测试 document.getElementById
-        console.log('[蓝湖] TEST getElementById __lh_hh:', typeof document.getElementById);
-        const hh = document.getElementById('__lh_hh');
-        console.log('[蓝湖] TEST hh result:', !!hh);
-
-        if (!hh || hh.style.display === 'none') {
+        // 从浮动面板 dataset 读取选中元素的坐标
+        const l = parseFloat(floater?.dataset?.selLeft);
+        const t = parseFloat(floater?.dataset?.selTop);
+        const w = parseFloat(floater?.dataset?.selW);
+        const h = parseFloat(floater?.dataset?.selH);
+        if (isNaN(l) || isNaN(t) || isNaN(w) || isNaN(h)) {
           setStatus('⚠️ 请先点击页面选择元素');
           return;
         }
-
-        const r = hh.getBoundingClientRect();
-        const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-        const current = document.elementFromPoint(cx, cy);
+        const current = document.elementFromPoint(l + w / 2, t + h / 2);
         if (!current) { setStatus('⚠️ 无法定位选中元素'); return; }
 
         let next = null;
@@ -292,9 +287,7 @@
           if (!next) { setStatus('⚠️ 已到最底层'); return; }
         }
 
-        console.log('[蓝湖] NAV target:', next.tagName);
-        currentSelectedEl = next;
-        if (floater) floater._selected = next;
+        console.log('[蓝湖]', isUp ? '↑父级' : '↓子级', '→', next.tagName);
         navPath = buildPath(next);
         navIndex = Math.max(1, Math.min(navPath.indexOf(next), Math.floor(navPath.length / 2), navPath.length - 2));
         applyNavSelection();
@@ -645,8 +638,14 @@
     }
     currentSelectedEl = el;
     console.log('[蓝湖] currentSelectedEl 已设置:', el.tagName, 'id:', el.id || '-', 'classes:', (el.className || '').slice(0,40));
-    // 也存到 floater DOM 对象上（防跨域变量同步丢失）
-    if (floater) floater._selected = el;
+    // 把选中元素坐标存到浮动面板 dataset（持久化，JS 变量丢失不影响）
+    const fr = el.getBoundingClientRect();
+    if (floater) {
+      floater.dataset.selLeft = fr.left;
+      floater.dataset.selTop = fr.top;
+      floater.dataset.selW = fr.width;
+      floater.dataset.selH = fr.height;
+    }
 
     highlightEl(el);
     trackContainerRect(el);
@@ -866,7 +865,13 @@
     navPath = [];
     navIndex = -1;
     currentSelectedEl = null;
-    if (floater) floater._selected = null;
+    if (floater) {
+      floater._selected = null;
+      delete floater.dataset.selLeft;
+      delete floater.dataset.selTop;
+      delete floater.dataset.selW;
+      delete floater.dataset.selH;
+    }
     selectionLocked = false;
 
     console.log('[蓝湖提取器] 已退出');
