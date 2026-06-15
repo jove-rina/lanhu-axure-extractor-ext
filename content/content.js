@@ -161,20 +161,21 @@
   </div>
 </div>`;
 
+  let createdByMe = false; // 当前实例是否是自己创建了浮动面板
+
   function createFloater() {
     if (document.getElementById('__lh_f')) {
       console.log('[蓝湖] createFloater → 已存在，赋值后跳过');
       floater = document.getElementById('__lh_f');
       return;
     }
+    createdByMe = true;
     console.log('[蓝湖] createFloater → 创建浮动面板');
     const d = document.createElement('div');
     d.innerHTML = HTML;
     document.body.appendChild(d.firstElementChild);
     floater = document.getElementById('__lh_f');
-    // 标记主实例（防止 Chrome 注入两遍 content script 导致重复绑定）
-    floater.dataset.owner = frameTag;
-    console.log('[蓝湖] createFloater → 完成, floater:', !!floater, 'owner:', frameTag);
+    console.log('[蓝湖] createFloater → 完成, floater:', !!floater);
 
     // 按钮
     document.getElementById('__lh_f_x')?.addEventListener('click', (e) => { e.stopPropagation(); deactivate(); });
@@ -296,8 +297,6 @@
         applyNavSelection();
       }
     });
-    // 标记事件已绑定（防 Chrome 注入两遍 content script 重复绑定）
-    floater.dataset.bound = '1';
   }
 
   function showFloater() { if (floater) floater.style.display = 'flex'; }
@@ -832,9 +831,9 @@
 
     if (FRAME_CTX === 'top') {
       createFloater();
-      // 检查是否已被其他实例绑定过事件
-      if (floater && floater.dataset.bound === '1') {
-        console.log('[蓝湖] 事件已被绑定，跳过');
+      // 非创建实例（是 Chrome 注入的第二遍）→ 跳过事件绑定和 DOM 操作
+      if (!createdByMe) {
+        console.log('[蓝湖] 非创建实例，跳过');
         return;
       }
       showFloater();
