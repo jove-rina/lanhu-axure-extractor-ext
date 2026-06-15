@@ -571,28 +571,34 @@
 
   /** 根据当前 navIndex 应用选择：高亮 + 提取 + 更新按钮状态 */
   function applyNavSelection() {
+    const upBtn = document.getElementById('__lh_f_up');
+    const dnBtn = document.getElementById('__lh_f_dn');
+    const info = document.getElementById('__lh_f_nav_info');
+
+    // 先更新按钮状态（无论 el 是否有效，按钮必须反应当前 navIndex 位置）
+    const canUp = navIndex > 0;
+    const canDn = navIndex < navPath.length - 1;
+    if (upBtn) {
+      upBtn.disabled = !canUp;
+      upBtn.style.opacity = canUp ? '1' : '0.4';
+      upBtn.style.color = canUp ? '#c1c2c5' : '#5c5f66';
+    }
+    if (dnBtn) {
+      dnBtn.disabled = !canDn;
+      dnBtn.style.opacity = canDn ? '1' : '0.4';
+      dnBtn.style.color = canDn ? '#c1c2c5' : '#5c5f66';
+    }
+
     const el = navPath[navIndex];
-    if (!el) return;
+    if (!el) {
+      if (info) info.textContent = navPath.length > 1 ? `⊞ (${navIndex + 1}/${navPath.length})` : '';
+      return;
+    }
 
     highlightEl(el);
     trackContainerRect(el);
 
     const bc = getBreadcrumb(el);
-    const upBtn = document.getElementById('__lh_f_up');
-    const dnBtn = document.getElementById('__lh_f_dn');
-    const info = document.getElementById('__lh_f_nav_info');
-
-    // 更新按钮状态
-    if (upBtn) {
-      upBtn.disabled = navIndex <= 0;
-      upBtn.style.opacity = navIndex <= 0 ? '0.4' : '1';
-      upBtn.style.color = navIndex <= 0 ? '#5c5f66' : '#c1c2c5';
-    }
-    if (dnBtn) {
-      dnBtn.disabled = navIndex >= navPath.length - 1;
-      dnBtn.style.opacity = navIndex >= navPath.length - 1 ? '0.4' : '1';
-      dnBtn.style.color = navIndex >= navPath.length - 1 ? '#5c5f66' : '#c1c2c5';
-    }
     if (info) {
       info.textContent = `⊞ ${bc}  (${navIndex + 1}/${navPath.length})`;
     }
@@ -662,6 +668,7 @@
 
       // 构建完整 DOM 路径
       navPath = buildPath(el);
+      console.log('[蓝湖提取器] navPath:', navPath.map(e => e.tagName+'.'+(e.className||'')).join(' > '), 'length:', navPath.length);
       if (navPath.length < 2) {
         setStatus('⚠️ 无法构建元素路径');
         return;
@@ -670,11 +677,15 @@
       // 智能定位起始容器：优先从 findContainer 的返回在路径中找到位置
       const { el: container } = findContainer(el);
       let startIdx = navPath.indexOf(container);
+      console.log('[蓝湖提取器] container:', container?.tagName, 'startIdx:', startIdx, 'pathLen:', navPath.length);
       if (startIdx < 1) {
-        // 如果 container 不在路径中（太靠上），从最深处往上一级
-        startIdx = navPath.length - 2;
+        // 如果 container 不在路径中（太靠上），从路径中间偏深处开始
+        startIdx = Math.max(1, navPath.length - 3);
       }
-      navIndex = Math.max(1, Math.min(startIdx, navPath.length - 1));
+      // 从中间位置开始，确保 ↑ 和 ↓ 都有空间
+      const midIdx = Math.floor(navPath.length / 2);
+      navIndex = Math.max(1, Math.min(startIdx, midIdx, navPath.length - 2));
+      console.log('[蓝湖提取器] navIndex:', navIndex, 'up:', navIndex > 0, 'down:', navIndex < navPath.length - 1);
 
       applyNavSelection();
       return;
