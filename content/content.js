@@ -1,271 +1,313 @@
 /**
  * 蓝湖 Axure 需求提取器 — 内容脚本
- * 运行在 lanhuapp.com 的所有 frame 中 (all_frames: true)
  *
- * 支持：
- * - 全页自动扫描：提取表格/文本/组件
- * - 拾取模式：鼠标悬停高亮，点击提取
- * - Axure div 表格识别（基于 getBoundingClientRect 行列推断）
+ * Axure 页面结构分析（基于 iframe.html 完整数据）：
+ *
+ * 组件类型         数量  说明
+ * _形状1           456   绝对定位的矩形（标签、表格格⼦）
+ * table_cell       240   表格单元格（6 张表）
+ * shape             46   基本形状
+ * _文本段落1        17   文本段落
+ * image             15   图片
+ * box_2/box_3       16   容器盒子
+ * checkbox           6   复选框
+ * _文本段落          6   文本段落
+ * heading_11         5   标题
+ * paragraph1         2   段落
+ * line/icon/_连接    4   线/图标/连接
+ *
+ * 提取策略：
+ * 1. table_cell 表格 → getBoundingClientRect 行列推断
+ * 2. _形状1 网格 → 按位置分组（Y坐标行，X坐标列）
+ * 3. 普通组件 → 按类型提取文本
+ * 4. 动态面板 → 展开提取内部内容
  */
 
 (() => {
   'use strict';
 
   const FRAME_CTX = getFrameContext();
-  console.log(`[蓝湖提取器] 已加载 — frame: ${FRAME_CTX}`);
+  console.log(`[蓝湖提取器] 已加载 — ${FRAME_CTX}`);
 
-  // ---- 拾取模式状态 ----
-  let pickerActive = false;
-  let pickerHighlight = null;
-  let pickerOverlay = null;
-  let pickerTarget = null;
-  let onPickerClickHandler = null;
-  let onPickerMoveHandler = null;
-  let onPickerKeyHandler = null;
-
-  // ==================== 工具函数 ====================
+  // ==================== 工具 ====================
 
   function getFrameContext() {
     try {
       if (window.top === window.self) return 'top';
-      const parentHost = window.parent.location.hostname;
-      return parentHost.includes('lanhuapp') ? 'lanhu-iframe' : 'unknown-iframe';
+      return window.parent.location.hostname.includes('lanhuapp') ? 'lanhu-iframe' : 'unknown-iframe';
     } catch { return 'cross-origin-iframe'; }
   }
 
+  /** 获取 Axure 组件的文本内容 */
   function axureText(el) {
-    // Axure 文本在 <div class="text"> 或 <div id="uXX_text"> 中
     if (!el) return '';
+    // Axure 文本在 #uXX_text .text 或直接 .text 中
     const textDiv = el.querySelector('.text, [id$="_text"]');
-    if (textDiv) return textDiv.innerText.trim();
+    if (textDiv && textDiv.innerText.trim()) return textDiv.innerText.trim();
+    // 隐藏文本（display:none）但可能有值
+    const hiddenText = el.querySelector('[id$="_text"][style*="display:none"]');
+    if (hiddenText && hiddenText.innerText.trim()) return hiddenText.innerText.trim();
     return el.innerText.trim();
   }
 
   function isVisible(el) {
     if (!el || !el.getBoundingClientRect) return false;
     const rect = el.getBoundingClientRect();
-    return rect.width > 0 && rect.height > 0;
+    return rect.width > 2 && rect.height > 2;
   }
 
-  function escapeMd(text) {
-    return text.replace(/\|/g, '\\|').replace(/\n/g, ' ');
+  function escapeMd(t) { return t.replace(/\|/g, '\\|').replace(/\n/g, ' '); }
+
+  function getBBox(el) {
+    const r = el.getBoundingClientRect();
+    return { x: r.left, y: r.top, w: r.width, h: r.height };
   }
 
-  // ==================== Axure 表格提取（核心！） ====================
+  // ==================== 表格提取（两种方式） ====================
 
   /**
-   * Axure 表格检测：
-   * 找含有 table_cell 子元素的容器 → 用 getBoundingClientRect 推断行列
+   * 方式1：table_cell 标签表格
+   * 找所有 .ax_default.table_cell，按容器分组，按位置推断行列
    */
-  function findAxureTables(root) {
+  function extractTableCells(root) {
     const results = [];
-    root = root || document;
-
-    // 1. 找直接包含 table_cell 的容器
-    const tableContainers = root.querySelectorAll(':scope > .ax_default > .ax_default.table_cell, :scope > .ax_default.table_cell');
-    
-    // 更好的方式：找所有 table_cell 的父容器
     const allCells = root.querySelectorAll('.ax_default.table_cell');
-    const containerMap = new Map();
+    if (allCells.length < 4) return results; // 至少 2x2
 
+    // 按最近 .ax_default 父容器分组
+    const groups = new Map();
     allCells.forEach(cell => {
       if (!isVisible(cell)) return;
-      let parent = cell.parentElement;
-      while (parent && parent !== root && parent !== root.body) {
-        if (parent.classList.contains('ax_default') || parent.id === 'base') break;
-        parent = parent.parentElement;
+      let p = cell.parentElement;
+      while (p && p !== root && p !== root.body) {
+        if (p.classList.contains('ax_default') || p.id === 'base') break;
+        p = p.parentElement;
       }
-      if (!parent) parent = cell.parentElement;
-
-      if (!containerMap.has(parent)) containerMap.set(parent, []);
-      containerMap.get(parent).push(cell);
+      if (!p) p = cell.parentElement;
+      if (!groups.has(p)) groups.set(p, []);
+      groups.get(p).push(cell);
     });
 
-    containerMap.forEach((cells, container) => {
-      if (cells.length < 2) return;
-
-      // 用 getBoundingClientRect 获取每个 cell 的位置
-      const cellRects = cells.map(cell => {
-        const rect = cell.getBoundingClientRect();
-        return {
-          el: cell,
-          text: axureText(cell),
-          x: Math.round(rect.left),
-          y: Math.round(rect.top),
-          w: Math.round(rect.width),
-          h: Math.round(rect.height),
-        };
-      }).filter(c => c.text.length > 0 || c.w > 10);
-
-      if (cellRects.length < 2) return;
-
-      // 按 Y 分组（行），容差 5px
-      const rows = [];
-      const yTolerance = 5;
-      cellRects.sort((a, b) => a.y - b.y);
-
-      cellRects.forEach(c => {
-        let found = false;
-        for (const row of rows) {
-          if (Math.abs(row.y - c.y) <= yTolerance) {
-            row.cells.push(c);
-            row.y = Math.min(row.y, c.y);
-            found = true;
-            break;
-          }
-        }
-        if (!found) {
-          rows.push({ y: c.y, cells: [c] });
-        }
-      });
-
-      // 每行内按 X 排序
-      rows.forEach(row => row.cells.sort((a, b) => a.x - b.x));
-
-      // 检查是否真的是表格（至少2行2列）
-      if (rows.length < 2) return;
-      const colCounts = rows.map(r => r.cells.length);
-      const maxCols = Math.max(...colCounts);
-      if (maxCols < 2) return;
-
-      // 构建 Markdown 表格
-      const mdRows = [];
-      rows.forEach((row, rowIdx) => {
-        const texts = row.cells.map(c => escapeMd(c.text));
-        // 补齐缺失的列
-        while (texts.length < maxCols) texts.push('');
-        mdRows.push(`| ${texts.join(' | ')} |`);
-        if (rowIdx === 0) {
-          mdRows.push(`| ${texts.map(() => '---').join(' | ')} |`);
-        }
-      });
-
-      const md = mdRows.join('\n');
-
-      // 获取表格前面的标题/注释
-      const prev = container.previousElementSibling;
-      const heading = prev ? axureText(prev) : '';
-      const title = heading && heading.length < 50
-        ? heading
-        : `字段表`;
-
-      results.push({
-        type: 'axure-table',
-        heading: title,
-        rows: rows.length,
-        cols: maxCols,
-        markdown: `### ${title}\n\n${md}`,
-        text: rows.map(r => r.cells.map(c => c.text).join(' | ')).join('; ').substring(0, 200),
-      });
+    groups.forEach((cells, container) => {
+      if (cells.length < 4) return;
+      const table = buildTableFromCells(cells);
+      if (table) results.push(table);
     });
 
     return results;
   }
 
-  /** 从任意元素提取 Axure 表格（用于拾取模式） */
-  function extractAxureTableFromElement(el) {
-    // 如果 el 本身就是表格容器或 table_cell
-    if (el.classList.contains('ax_default') && el.querySelector('.ax_default.table_cell')) {
-      return findAxureTables(el);
-    }
-    if (el.classList.contains('table_cell')) {
-      // 从父容器提取
-      const parent = el.closest('.ax_default') || el.parentElement;
-      return findAxureTables(parent);
-    }
-    // 检查 el 内部是否包含表格
-    const innerTables = el.querySelectorAll('.ax_default.table_cell');
-    if (innerTables.length >= 4) {
-      const parent = innerTables[0].closest('.ax_default') || innerTables[0].parentElement;
-      if (parent) return findAxureTables(parent);
-    }
-    return [];
+  /**
+   * 方式2：_形状1 网格表格
+   * 找所有 .ax_default._形状1，按容器分组，按位置推断行列
+   */
+  function extractShapeGrids(root) {
+    const results = [];
+    const shapes = root.querySelectorAll('.ax_default._形状1');
+    if (shapes.length < 4) return results;
+
+    // 按父容器分组（最近的 .ax_default 或 #base）
+    const groups = new Map();
+    shapes.forEach(s => {
+      if (!isVisible(s)) return;
+      const text = axureText(s);
+      if (!text) return; // 跳过空形状
+
+      let p = s.parentElement;
+      while (p && p !== root && p !== root.body) {
+        if (p.classList.contains('ax_default') || p.classList.contains('panel_state_content') || p.id === 'base') break;
+        p = p.parentElement;
+      }
+      if (!p) p = s.parentElement;
+      if (!groups.has(p)) groups.set(p, []);
+      groups.get(p).push(s);
+    });
+
+    groups.forEach((shapes, container) => {
+      if (shapes.length < 4) return;
+
+      // 尝试构建表格
+      const table = buildTableFromCells(shapes);
+      if (table) {
+        table.type = 'shape-grid';
+        table.heading = extractTableHeading(container);
+        table.markdown = `### ${table.heading}\n\n${buildMdTable(table.rows, table.cols)}`;
+        results.push(table);
+      }
+    });
+
+    return results;
   }
 
-  // ==================== 通用内容提取 ====================
+  /** 从一组元素中构建表格（按位置行列推断） */
+  function buildTableFromCells(elements) {
+    const bboxes = elements.map(el => {
+      const rect = getBBox(el);
+      return { el, text: axureText(el), x: Math.round(rect.x), y: Math.round(rect.y) };
+    }).filter(c => c.text.length > 0 || true); // 保留空 cell 占位
 
-  /** 从 document 提取所有结构化内容 */
+    if (bboxes.length < 4) return null;
+
+    // 按 Y 分组（行），容差 8px
+    const rows = [];
+    const yTol = 8;
+    const sorted = [...bboxes].sort((a, b) => a.y - b.y);
+
+    sorted.forEach(c => {
+      let found = false;
+      for (const row of rows) {
+        if (Math.abs(row.y - c.y) <= yTol) {
+          row.cells.push(c);
+          row.y = Math.min(row.y, c.y);
+          found = true;
+          break;
+        }
+      }
+      if (!found) rows.push({ y: c.y, cells: [c] });
+    });
+
+    // 每行按 X 排序
+    rows.forEach(r => r.cells.sort((a, b) => a.x - b.x));
+
+    // 过滤：至少 2 行 2 列
+    if (rows.length < 2) return null;
+    const colCounts = rows.map(r => r.cells.length);
+    const maxCols = Math.max(...colCounts);
+    if (maxCols < 2) return null;
+
+    // 统一列数
+    rows.forEach(r => {
+      while (r.cells.length < maxCols) {
+        r.cells.push({ text: '' });
+      }
+    });
+
+    return {
+      rows: rows.length,
+      cols: maxCols,
+      rowData: rows.map(r => r.cells.map(c => c.text)),
+    };
+  }
+
+  function buildMdTable(rowData, maxCols) {
+    const lines = [];
+    rowData.forEach((cells, idx) => {
+      const texts = cells.map(t => escapeMd(t || ''));
+      while (texts.length < maxCols) texts.push('');
+      lines.push(`| ${texts.join(' | ')} |`);
+      if (idx === 0) lines.push(`| ${texts.map(() => '---').join(' | ')} |`);
+    });
+    return lines.join('\n');
+  }
+
+  function extractTableHeading(container) {
+    const prev = container.previousElementSibling;
+    if (prev) {
+      const t = axureText(prev);
+      if (t && t.length < 60) return t;
+    }
+    // 尝试从容器上的 data-* 属性
+    const label = container.getAttribute('data-label');
+    if (label) return label;
+    return '数据表';
+  }
+
+  // ==================== 动态面板提取 ====================
+
+  function extractDynamicPanels(root) {
+    const results = [];
+    const panels = root.querySelectorAll('.panel_state_content, [class*="panel_state"]');
+    panels.forEach(panel => {
+      // 提取 panel 内的所有文本
+      const texts = [];
+      panel.querySelectorAll('[id$="_text"] .text, .text p span').forEach(el => {
+        const t = el.innerText.trim();
+        if (t && t.length > 1 && !texts.includes(t)) texts.push(t);
+      });
+      if (texts.length > 0) {
+        results.push({
+          type: 'dynamic-panel',
+          heading: '面板内容',
+          markdown: `### 面板内容\n\n${texts.join('\n')}`,
+        });
+      }
+    });
+    return results;
+  }
+
+  // ==================== 其他组件提取 ====================
+
+  function extractHeadings(root) {
+    const results = [];
+    const headings = root.querySelectorAll(
+      '.ax_default.heading_11, h1, h2, h3, h4, h5, h6, [class*="heading"]'
+    );
+    const seen = new Set();
+    headings.forEach(h => {
+      const t = axureText(h) || h.innerText.trim();
+      if (!t || seen.has(t) || t.length < 2) return;
+      seen.add(t);
+      results.push({ type: 'heading', heading: t, markdown: `## ${t}` });
+    });
+    return results;
+  }
+
+  function extractCheckboxes(root) {
+    const results = [];
+    const cbs = root.querySelectorAll('.ax_default.checkbox, [class*="checkbox"]');
+    const items = Array.from(cbs).map(cb => axureText(cb)).filter(t => t.length > 0);
+    if (items.length > 0) {
+      results.push({
+        type: 'checkbox',
+        heading: '选项',
+        markdown: `## 选项\n\n${items.map(t => `- [ ] ${t}`).join('\n')}`,
+      });
+    }
+    return results;
+  }
+
+  function extractParagraphs(root) {
+    const results = [];
+    const paras = root.querySelectorAll(
+      '.ax_default.paragraph1, .ax_default._文本段落1, .ax_default._文本段落, .ax_default.shape'
+    );
+    const texts = Array.from(paras).map(p => axureText(p)).filter(t => t.length > 10);
+    if (texts.length > 0) {
+      results.push({
+        type: 'text',
+        heading: '说明',
+        markdown: texts.join('\n\n'),
+      });
+    }
+    return results;
+  }
+
+  // ==================== 主提取函数 ====================
+
   function extractFromDocument(doc) {
-    const sections = [];
     const root = doc.body || doc;
     if (!root) return { sections: [], markdown: '' };
 
-    // 1. Axure 表格
-    const axeTables = findAxureTables(root);
-    axeTables.forEach(t => sections.push(t));
+    let sections = [];
 
-    // 2. 真正的 HTML <table>（备用）
-    const htmlTables = root.querySelectorAll('table');
-    htmlTables.forEach((table, idx) => {
-      const rows = table.querySelectorAll('tr');
-      if (rows.length < 2) return;
-      const mdRows = [];
-      rows.forEach((row, ri) => {
-        const cells = row.querySelectorAll('th, td');
-        const texts = Array.from(cells).map(c => escapeMd(c.innerText.trim()));
-        mdRows.push(`| ${texts.join(' | ')} |`);
-        if (ri === 0) mdRows.push(`| ${texts.map(() => '---').join(' | ')} |`);
-      });
-      const md = mdRows.join('\n');
-      sections.push({
-        type: 'html-table',
-        heading: `表格 ${idx + 1}`,
-        markdown: `### 表格 ${idx + 1}\n\n${md}`,
-      });
-    });
+    // 1. table_cell 表格
+    sections.push(...extractTableCells(root));
 
-    // 3. 标题 (heading_11 / h1-h6)
-    const headings = root.querySelectorAll('.ax_default.heading_11, h1, h2, h3, h4, h5, h6, [class*="heading"]');
-    const seenTexts = new Set();
-    headings.forEach(h => {
-      const text = axureText(h) || h.innerText.trim();
-      if (!text || seenTexts.has(text) || text.length < 2) return;
-      seenTexts.add(text);
+    // 2. _形状1 网格表格（关键新增！）
+    sections.push(...extractShapeGrids(root));
 
-      const following = [];
-      let next = h.nextElementSibling;
-      let guard = 0;
-      while (next && !/^H[1-6]$/.test(next.tagName) && !next.classList.contains('heading_11') && guard < 5) {
-        const t = axureText(next) || next.innerText.trim();
-        if (t.length > 10) following.push(t);
-        next = next.nextElementSibling;
-        guard++;
-      }
+    // 3. 动态面板
+    sections.push(...extractDynamicPanels(root));
 
-      sections.push({
-        type: 'heading',
-        heading: text,
-        markdown: following.length > 0 ? `## ${text}\n\n${following.join('\n\n')}` : `## ${text}`,
-      });
-    });
+    // 4. 标题
+    sections.push(...extractHeadings(root));
 
-    // 4. 复选框 (checkbox)
-    const checkboxes = root.querySelectorAll('.ax_default.checkbox, [class*="checkbox"]');
-    if (checkboxes.length > 0) {
-      const items = Array.from(checkboxes)
-        .map(cb => axureText(cb))
-        .filter(t => t.length > 0);
-      if (items.length > 0) {
-        sections.push({
-          type: 'checkbox',
-          heading: '选项',
-          markdown: `## 选项\n\n${items.map(t => `- [ ] ${t}`).join('\n')}`,
-        });
-      }
-    }
+    // 5. 复选框
+    sections.push(...extractCheckboxes(root));
 
-    // 5. 段落/文本块 (paragraph1 / shape)
-    const paras = root.querySelectorAll('.ax_default.paragraph1, .ax_default.shape');
-    const paraTexts = Array.from(paras)
-      .map(p => axureText(p))
-      .filter(t => t.length > 15);
-
-    if (paraTexts.length > 0 && sections.filter(s => s.type !== 'axure-table').length === 0) {
-      sections.push({
-        type: 'text',
-        heading: '说明',
-        markdown: paraTexts.join('\n\n'),
-      });
+    // 6. 段落（仅在无表格时）
+    if (sections.filter(s => s.type === 'table' || s.type === 'shape-grid').length === 0) {
+      sections.push(...extractParagraphs(root));
     }
 
     // 构建 Markdown
@@ -282,20 +324,25 @@
     return { sections, markdown: lines.join('\n') };
   }
 
-  // ==================== 拾取模式 ====================
+  // ==================== 拾取模式（同上，略作优化） ====================
+
+  let pickerActive = false;
+  let pickerHighlight = null;
+  let pickerOverlay = null;
+  let pickerTarget = null;
 
   function createPickerUI() {
     pickerHighlight = document.createElement('div');
-    pickerHighlight.id = '__lh_picker_h';
+    pickerHighlight.id = '__lh_h';
     Object.assign(pickerHighlight.style, {
       position: 'fixed', pointerEvents: 'none', zIndex: '2147483646',
-      border: '2px solid #f08c00', background: 'rgba(240, 140, 0, 0.08)',
-      borderRadius: '4px', transition: 'all 0.05s ease', display: 'none',
+      border: '2px solid #f08c00', background: 'rgba(240,140,0,0.08)',
+      borderRadius: '4px', transition: 'all 0.05s', display: 'none',
     });
     document.body.appendChild(pickerHighlight);
 
     pickerOverlay = document.createElement('div');
-    pickerOverlay.id = '__lh_picker_o';
+    pickerOverlay.id = '__lh_o';
     Object.assign(pickerOverlay.style, {
       position: 'fixed', pointerEvents: 'none', zIndex: '2147483647',
       background: '#f08c00', color: '#fff', fontSize: '11px',
@@ -306,41 +353,27 @@
   }
 
   function removePickerUI() {
-    if (pickerHighlight) { pickerHighlight.remove(); pickerHighlight = null; }
-    if (pickerOverlay) { pickerOverlay.remove(); pickerOverlay = null; }
+    [pickerHighlight, pickerOverlay].forEach(el => { if (el) el.remove(); });
+    pickerHighlight = pickerOverlay = null;
   }
 
   function onPickerMove(e) {
-    // 用 elementFromPoint + 忽略我们的 UI 元素
     const el = document.elementFromPoint(e.clientX, e.clientY);
-    if (!el || el === pickerHighlight || el === pickerOverlay ||
-        el.id === '__lh_picker_h' || el.id === '__lh_picker_o') {
-      return;
-    }
-
+    if (!el || el.id?.startsWith('__lh_')) return;
     pickerTarget = el;
     const rect = el.getBoundingClientRect();
     if (!rect || rect.width === 0) return;
 
     if (pickerHighlight) {
-      pickerHighlight.style.display = 'block';
-      pickerHighlight.style.left = rect.left + 'px';
-      pickerHighlight.style.top = rect.top + 'px';
-      pickerHighlight.style.width = rect.width + 'px';
-      pickerHighlight.style.height = rect.height + 'px';
+      pickerHighlight.style.cssText += `display:block;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;height:${rect.height}px`;
     }
-
     if (pickerOverlay) {
+      const text = (axureText(el) || '').substring(0, 50).replace(/\n/g, ' ');
       const tag = el.tagName.toLowerCase();
-      const id = el.id ? `#${el.id}` : '';
-      const cls = Array.from(el.classList).slice(0, 3).join('.');
-      const text = (axureText(el) || el.innerText || '').substring(0, 50).replace(/\n/g, ' ');
-      pickerOverlay.textContent = `<${tag}${id ? '#'+id : ''}> ${text}`;
-
-      let top = rect.top - 24;
-      if (top < 0) top = rect.bottom + 4;
+      const id = el.id ? '#' + el.id : '';
+      pickerOverlay.textContent = `<${tag}${id}> ${text}`;
       pickerOverlay.style.left = rect.left + 'px';
-      pickerOverlay.style.top = top + 'px';
+      pickerOverlay.style.top = (rect.top - 24 < 0 ? rect.bottom + 4 : rect.top - 24) + 'px';
       pickerOverlay.style.display = 'block';
     }
   }
@@ -352,53 +385,39 @@
     e.stopImmediatePropagation();
 
     const el = pickerTarget;
-    let result = null;
+    let md = '', type = 'text', text = '';
 
-    // 1. 尝试以 Axure 表格提取
-    const tables = extractAxureTableFromElement(el);
-    if (tables.length > 0) {
-      result = tables[0];
-    }
-
-    // 2. 如果没提取到表格，用通用方式
-    if (!result) {
-      const text = axureText(el) || el.innerText.trim();
-      const tag = el.tagName.toLowerCase();
-
-      if (el.classList.contains('table_cell')) {
-        // 单个单元格没意义，提取整个表格
-        const parent = el.closest('.ax_default');
-        if (parent) {
-          const parentTables = extractAxureTableFromElement(parent);
-          if (parentTables.length > 0) result = parentTables[0];
+    // 尝试以表格提取
+    if (el.classList.contains('table_cell') || el.closest('.ax_default')) {
+      const parent = el.closest('.ax_default') || el.parentElement;
+      // 尝试 table_cell 表格
+      const cells = parent.querySelectorAll('.ax_default.table_cell');
+      if (cells.length >= 4) {
+        const table = buildTableFromCells(cells);
+        if (table) { md = buildMdTable(table.rowData, table.cols); type = 'table'; }
+      }
+      // 尝试 _形状1 表格
+      if (!md) {
+        const shapes = parent.querySelectorAll('.ax_default._形状1');
+        if (shapes.length >= 4) {
+          const table = buildTableFromCells(shapes);
+          if (table) { md = buildMdTable(table.rowData, table.cols); type = 'shape-grid'; }
         }
       }
-
-      if (!result) {
-        result = {
-          type: tag === 'table' ? 'html-table' : 'text',
-          heading: text.substring(0, 40),
-          markdown: text,
-          text: text.substring(0, 200),
-        };
-      }
     }
 
+    if (!md) {
+      md = axureText(el) || el.innerText.trim();
+      type = 'text';
+    }
+
+    text = md.substring(0, 200);
     const selector = getElementSelector(el);
     deactivatePicker();
 
-    // 发送结果
     chrome.runtime.sendMessage({
       action: 'picker-result',
-      data: {
-        markdown: result.markdown,
-        type: result.type,
-        text: result.text,
-        selector: selector,
-        tag: el.tagName.toLowerCase(),
-        id: el.id || '',
-        classes: Array.from(el.classList).join('.'),
-      },
+      data: { markdown: md, type, text, selector, tag: el.tagName.toLowerCase(), id: el.id || '', classes: Array.from(el.classList).join('.') },
     });
   }
 
@@ -412,70 +431,48 @@
   function activatePicker() {
     if (pickerActive) return;
     pickerActive = true;
-
     createPickerUI();
-
-    // 使用捕获阶段确保优先处理
-    onPickerMoveHandler = (e) => onPickerMove(e);
-    onPickerClickHandler = (e) => onPickerClick(e);
-    onPickerKeyHandler = (e) => onPickerKey(e);
-
-    document.addEventListener('mousemove', onPickerMoveHandler, true);
-    document.addEventListener('click', onPickerClickHandler, true);
-    document.addEventListener('keydown', onPickerKeyHandler, true);
-
+    document.addEventListener('mousemove', onPickerMove, true);
+    document.addEventListener('click', onPickerClick, true);
+    document.addEventListener('keydown', onPickerKey, true);
     document.body.style.cursor = 'crosshair';
     document.body.style.userSelect = 'none';
-
-    console.log('[蓝湖提取器] 拾取模式已激活');
   }
 
   function deactivatePicker() {
     if (!pickerActive) return;
     pickerActive = false;
-
-    if (onPickerMoveHandler) document.removeEventListener('mousemove', onPickerMoveHandler, true);
-    if (onPickerClickHandler) document.removeEventListener('click', onPickerClickHandler, true);
-    if (onPickerKeyHandler) document.removeEventListener('keydown', onPickerKeyHandler, true);
-
+    document.removeEventListener('mousemove', onPickerMove, true);
+    document.removeEventListener('click', onPickerClick, true);
+    document.removeEventListener('keydown', onPickerKey, true);
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
-
     removePickerUI();
     pickerTarget = null;
-    console.log('[蓝湖提取器] 拾取模式已退出');
   }
 
   function getElementSelector(el) {
     const parts = [];
     let cur = el;
-    while (cur && cur !== document.body && cur !== document.documentElement) {
+    while (cur && cur !== document.body) {
       const tag = cur.tagName.toLowerCase();
       let sel = tag;
-      if (cur.id) { sel = '#' + cur.id; parts.unshift(sel); break; }
+      if (cur.id) { parts.unshift('#' + cur.id); break; }
       const cls = Array.from(cur.classList).filter(c => !c.startsWith('__lh_')).slice(0, 2);
       if (cls.length) sel += '.' + cls.join('.');
-      const parent = cur.parentElement;
-      if (parent) {
-        const siblings = Array.from(parent.children).filter(c => c.tagName === cur.tagName);
-        if (siblings.length > 1) {
-          const idx = siblings.indexOf(cur) + 1;
-          sel += `:nth-child(${idx})`;
-        }
-      }
       parts.unshift(sel);
       cur = cur.parentElement;
     }
     return parts.join(' > ');
   }
 
-  // ==================== 页面提取 API ====================
+  // ==================== 页面 API ====================
 
   function fullExtract() {
     const main = extractFromDocument(document);
+    const isAxure = !!document.querySelector('.ax_default');
     return {
-      frame: FRAME_CTX,
-      isAxureContent: isAxureContent(),
+      frame: FRAME_CTX, isAxureContent: isAxure,
       pages: [{ frame: FRAME_CTX, title: document.title, sections: main.sections, markdown: main.markdown }],
       combinedMarkdown: main.markdown,
     };
@@ -484,32 +481,20 @@
   function simpleExtract() {
     const result = extractFromDocument(document);
     return {
-      frame: FRAME_CTX,
-      isAxureContent: isAxureContent(),
+      frame: FRAME_CTX, isAxureContent: !!document.querySelector('.ax_default'),
       pages: [{ frame: FRAME_CTX, title: document.title, sections: result.sections, markdown: result.markdown }],
       combinedMarkdown: result.markdown,
     };
   }
 
-  function isAxureContent() {
-    return !!(
-      document.querySelector('frameset') ||
-      document.querySelector('[class*="axure" i]') ||
-      document.querySelector('[id*="axure" i]') ||
-      document.querySelector('[data-gen-guid]') ||
-      document.querySelector('.ax_default') ||
-      /axure/i.test(document.querySelector('meta[name="generator"]')?.content || '')
-    );
-  }
-
   function getDiagnostics() {
     return {
-      frame: FRAME_CTX,
-      isAxure: isAxureContent(),
-      title: document.title,
-      bodySize: document.body?.innerText?.length || 0,
+      frame: FRAME_CTX, title: document.title,
       tableCells: document.querySelectorAll('.ax_default.table_cell').length,
-      axureWidgets: document.querySelectorAll('.ax_default').length,
+      shapeGrid: document.querySelectorAll('.ax_default._形状1').length,
+      panels: document.querySelectorAll('.panel_state_content').length,
+      widgets: document.querySelectorAll('.ax_default').length,
+      bodySize: document.body?.innerText?.length || 0,
     };
   }
 
@@ -518,23 +503,12 @@
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     switch (request.action) {
       case 'extract-axure':
-        if (FRAME_CTX === 'top') sendResponse({ status: 'ok', data: fullExtract() });
-        else sendResponse({ status: 'ok', data: simpleExtract() });
+        sendResponse({ status: 'ok', data: FRAME_CTX === 'top' ? fullExtract() : simpleExtract() });
         break;
-      case 'ping':
-        sendResponse({ pong: true, frame: FRAME_CTX });
-        break;
-      case 'diagnose-me':
-        sendResponse({ status: 'ok', data: getDiagnostics() });
-        break;
-      case 'start-picker':
-        activatePicker();
-        sendResponse({ status: 'ok' });
-        break;
-      case 'stop-picker':
-        deactivatePicker();
-        sendResponse({ status: 'ok' });
-        break;
+      case 'ping': sendResponse({ pong: true, frame: FRAME_CTX }); break;
+      case 'diagnose-me': sendResponse({ status: 'ok', data: getDiagnostics() }); break;
+      case 'start-picker': activatePicker(); sendResponse({ status: 'ok' }); break;
+      case 'stop-picker': deactivatePicker(); sendResponse({ status: 'ok' }); break;
     }
     return true;
   });
