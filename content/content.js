@@ -608,10 +608,38 @@
 
     if (result.markdown) {
       if (FRAME_CTX !== 'top') {
-        try { window.top.postMessage({ type: '__lh_picker_result', markdown: result.markdown, sourceType: result.type }, '*'); } catch {}
+        try {
+          window.top.postMessage({
+            type: '__lh_picker_result',
+            markdown: result.markdown,
+            sourceType: result.type,
+            navIndex: navIndex,
+            navPathLength: navPath.length,
+            breadcrumb: bc
+          }, '*');
+        } catch {}
       } else { setContent(result.markdown, result.type); }
     } else {
       setStatus('⚠️ 容器无内容');
+    }
+  }
+
+  /** 更新顶层浮动面板的按钮状态（iframe 结果到达时调用） */
+  function updateNavButtonsFromData(data) {
+    const upBtn = document.getElementById('__lh_f_up');
+    const dnBtn = document.getElementById('__lh_f_dn');
+    const info = document.getElementById('__lh_f_nav_info');
+    if (data && data.navPathLength) {
+      const canUp = data.navIndex > 0;
+      const canDn = data.navIndex < data.navPathLength - 1;
+      if (upBtn) { upBtn.disabled = !canUp; upBtn.style.opacity = canUp ? '1' : '0.4'; upBtn.style.color = canUp ? '#c1c2c5' : '#5c5f66'; }
+      if (dnBtn) { dnBtn.disabled = !canDn; dnBtn.style.opacity = canDn ? '1' : '0.4'; dnBtn.style.color = canDn ? '#c1c2c5' : '#5c5f66'; }
+      if (info) info.textContent = `⊞ ${data.breadcrumb || '(iframe)'}  (${(data.navIndex||0)+1}/${data.navPathLength})`;
+    } else {
+      // 没有导航信息时，简单启用按钮
+      if (upBtn) { upBtn.disabled = false; upBtn.style.opacity = '1'; upBtn.style.color = '#c1c2c5'; }
+      if (dnBtn) { dnBtn.disabled = false; dnBtn.style.opacity = '1'; dnBtn.style.color = '#c1c2c5'; }
+      if (info) info.textContent = '';
     }
   }
 
@@ -722,7 +750,8 @@
   function setupMessageListener() {
     window.addEventListener('message', (e) => {
       if (e.data && e.data.type === '__lh_picker_result' && e.data.markdown) {
-        setContent(e.data.markdown, (e.data.sourceType || 'text') + ' (iframe)');
+        setContent(e.data.markdown, (e.data.sourceType || 'text') + (e.data.navPathLength ? '' : ' (iframe)'));
+        updateNavButtonsFromData(e.data);
       }
     });
   }
