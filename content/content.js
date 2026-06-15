@@ -683,10 +683,15 @@
 
   // ---- 事件 ----
   function onMouseDown(e) {
+    console.log('[蓝湖] mousedown target:', e.target.tagName, 'id:', e.target.id, 'closestFltr:', !!e.target?.closest?.('#__lh_f'));
     if (e.button !== 0) return;
-    if (e.target.closest && e.target.closest('#__lh_f')) return;
+    if (e.target.closest && e.target.closest('#__lh_f')) {
+      console.log('[蓝湖] mousedown → 浮动面板点击，跳过');
+      return;
+    }
+    console.log('[蓝湖] mousedown → 页面点击，清除选择');
     hideHighlight();
-    selectionLocked = false; // 新点击 → 解锁，准备选择新元素
+    selectionLocked = false;
     e.preventDefault();
     isDragging = true;
     selStartX = selEndX = e.clientX;
