@@ -227,7 +227,7 @@
     list.innerHTML = modules.map((m, mi) => `
 <div style="background:#25262b;border:1px solid #373a40;border-radius:8px;margin-bottom:10px;overflow:hidden;">
   <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#2c2e33;border-bottom:1px solid #373a40;">
-    <span style="color:#f08c00;font-size:13px;font-weight:600;">📄 模块 ${mi + 1}</span>
+    <span style="color:#f08c00;font-size:13px;font-weight:600;">📄 ${escHtml(m.title) || `模块 ${mi + 1}`}</span>
     <div style="display:flex;gap:4px;">
       <button data-preview="${m.id}" title="预览本模块" style="background:#2b8a3e;color:#fff;border:none;border-radius:4px;padding:2px 10px;font-size:11px;cursor:pointer;">📖 预览</button>
       <button data-mv="${m.id}" data-dir="-1" title="上移模块" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;" ${mi === 0 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>↑</button>
@@ -306,11 +306,7 @@
         m.contents.forEach(c => { if (c) parts.push(c); });
         const md = parts.join('\n\n');
         if (!md) { setStatus('⚠️ 该模块无内容'); return; }
-        const w = window.open('', '_blank', 'width=800,height=600');
-        if (!w) { setStatus('⚠️ 请允许弹出窗口'); return; }
-        const html = renderMarkdown(md);
-        w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>模块预览</title><style>body{background:#1a1b1e;color:#c1c2c5;font:15px -apple-system,sans-serif;padding:30px;max-width:700px;margin:auto;line-height:1.8}h1,h2,h3{color:#f08c00}table{border-collapse:collapse;width:100%}th,td{border:1px solid #373a40;padding:6px 10px}th{background:#25262b}</style></head><body>${html}</body></html>`);
-        w.document.close();
+        openPreviewWindow(m.title || `模块预览`, md);
       });
     });
 
@@ -394,14 +390,16 @@
 
   // ---- 预览 ----
 
-  function showPreview() {
-    const md = getFullMarkdown();
-    if (!md) { setStatus('⚠️ 暂无内容'); return; }
-    const w = window.open('', '_blank', 'width=900,height=700');
-    if (!w) { setStatus('⚠️ 请允许弹出窗口'); return; }
-    // 预渲染 markdown → HTML（用 content script 自己的渲染器）
+  let previewWindow = null;
+
+  function openPreviewWindow(title, md) {
+    if (previewWindow && !previewWindow.closed) {
+      try { previewWindow.close(); } catch {}
+    }
+    previewWindow = window.open('', '_blank', 'width=900,height=700');
+    if (!previewWindow) { setStatus('⚠️ 请允许弹出窗口'); return; }
     const html = renderMarkdown(md);
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>文档预览</title>
+    previewWindow.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#1a1b1e;color:#c1c2c5;font:15px -apple-system,BlinkMacSystemFont,'PingFang SC','Noto Sans SC',sans-serif;padding:40px;max-width:800px;margin:auto;line-height:1.8}
@@ -425,7 +423,13 @@ img{max-width:100%;border-radius:4px}
 p{margin:8px 0}
 strong{color:#e0e0e0}
 </style></head><body>${html}</body></html>`);
-    w.document.close();
+    previewWindow.document.close();
+  }
+
+  function showPreview() {
+    const md = getFullMarkdown();
+    if (!md) { setStatus('⚠️ 暂无内容'); return; }
+    openPreviewWindow('文档预览', md);
     setStatus('✅ 预览已打开');
   }
 
