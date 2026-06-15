@@ -149,14 +149,9 @@
     <button data-sc="container" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">🎯 容器</button>
     <button data-sc="multi" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">➕ 多选</button>
   </div>
-  <div id="__lh_f_nav" style="display:flex;align-items:center;gap:6px;padding:3px 12px 5px;border-top:1px solid #25262b;font-size:11px;color:#909296;">
-    <button id="__lh_f_up" aria-disabled="true" style="background:#373a40;color:#5c5f66;border:none;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;opacity:0.4;">↑ 父级</button>
-    <button id="__lh_f_dn" aria-disabled="true" style="background:#373a40;color:#5c5f66;border:none;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;opacity:0.4;">↓ 子级</button>
-    <span id="__lh_f_nav_info" style="font-size:10px;color:#5c5f66;flex:1;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
-  </div>
   <div style="padding:6px 14px;background:#25262b;border-top:1px solid #373a40;font-size:11px;color:#5c5f66;
     display:flex;justify-content:space-between;">
-    <span id="__lh_f_s">点击选择容器 · 工具栏 ↑↓ 导航 · 拖拽框选提取</span>
+    <span id="__lh_f_s">点击选择容器 · 拖拽框选提取 · ESC退出</span>
     <span>ESC 退出</span>
   </div>
 </div>`;
@@ -252,56 +247,7 @@
       });
     }
 
-    // 容器导航：父级 / 子级（事件代理方式）
-    floater.addEventListener('click', (e) => {
-      if (e.target.id === '__lh_f_up' || e.target.id === '__lh_f_dn') {
-        e.stopPropagation();
-        const isUp = e.target.id === '__lh_f_up';
-        console.log('[蓝湖]', isUp ? '↑父级' : '↓子级');
-
-        // 从浮动面板 dataset 读取选中元素的坐标
-        const l = parseFloat(floater?.dataset?.selLeft);
-        const t = parseFloat(floater?.dataset?.selTop);
-        const w = parseFloat(floater?.dataset?.selW);
-        const h = parseFloat(floater?.dataset?.selH);
-        if (isNaN(l) || isNaN(t) || isNaN(w) || isNaN(h)) {
-          setStatus('⚠️ 请先点击页面选择元素');
-          return;
-        }
-        // 来自 iframe 的选择 → 坐标无法映射到顶层，不支持导航
-        if (floater?.dataset?.fromIframe === '1') {
-          setStatus('⚠️ iframe 内不支持容器导航');
-          return;
-        }
-        const current = document.elementFromPoint(l + w / 2, t + h / 2);
-        if (!current) { setStatus('⚠️ 无法定位选中元素'); return; }
-
-        let next = null;
-        if (isUp) {
-          next = current.parentElement;
-          if (!next || next === document.body || next === document.documentElement) {
-            setStatus('⚠️ 已在最顶层');
-            return;
-          }
-        } else {
-          const curIdx = navPath.indexOf(current);
-          if (curIdx >= 0 && curIdx < navPath.length - 1) {
-            next = navPath[curIdx + 1];
-          } else {
-            const children = Array.from(current.children).filter(c =>
-              c.tagName !== 'BR' && !c.id?.startsWith?.('__lh_')
-            );
-            next = children.length > 0 ? children[0] : null;
-          }
-          if (!next) { setStatus('⚠️ 已到最底层'); return; }
-        }
-
-        console.log('[蓝湖]', isUp ? '↑父级' : '↓子级', '→', next.tagName);
-        navPath = buildPath(next);
-        navIndex = Math.max(1, Math.min(navPath.indexOf(next), Math.floor(navPath.length / 2), navPath.length - 2));
-        applyNavSelection();
-      }
-    });
+    // 容器导航：父级 / 子级（已移除）
   }
 
   function showFloater() { if (floater) floater.style.display = 'flex'; }
@@ -647,18 +593,6 @@
     }
     currentSelectedEl = el;
     console.log('[蓝湖]', frameTag, 'currentSelectedEl 已设置:', el.tagName, 'id:', el.id || '-', 'classes:', (el.className || '').slice(0,40));
-    // 把选中元素坐标存到浮动面板 dataset（持久化，JS 变量丢失不影响）
-    const fr = el.getBoundingClientRect();
-    if (floater) {
-      floater.dataset.selLeft = fr.left;
-      floater.dataset.selTop = fr.top;
-      floater.dataset.selW = fr.width;
-      floater.dataset.selH = fr.height;
-      delete floater.dataset.fromIframe; // top frame 自身选择，清除 iframe 标记
-      console.log('[蓝湖]', frameTag, 'floater.dataset 已写入:', fr.left, fr.top, fr.width, fr.height);
-    } else {
-      console.log('[蓝湖]', frameTag, 'floater 为空，无法写入 dataset');
-    }
 
     highlightEl(el);
     trackContainerRect(el);
@@ -694,30 +628,10 @@
     }
   }
 
-  /** 更新顶层浮动面板的按钮状态（iframe 结果到达时调用） */
+  /** 更新顶层浮动面板状态（iframe 结果到达时调用） */
   function updateNavButtonsFromData(data) {
-    const upBtn = document.getElementById('__lh_f_up');
-    const dnBtn = document.getElementById('__lh_f_dn');
-    const info = document.getElementById('__lh_f_nav_info');
-    if (data && data.navPathLength) {
-      const canUp = data.navIndex > 0;
-      const canDn = data.navIndex < data.navPathLength - 1;
-      if (upBtn) { upBtn.setAttribute('aria-disabled', !canUp); upBtn.style.opacity = canUp ? '1' : '0.4'; upBtn.style.color = canUp ? '#c1c2c5' : '#5c5f66'; upBtn.style.cursor = canUp ? 'pointer' : 'default'; }
-      if (dnBtn) { dnBtn.setAttribute('aria-disabled', !canDn); dnBtn.style.opacity = canDn ? '1' : '0.4'; dnBtn.style.color = canDn ? '#c1c2c5' : '#5c5f66'; dnBtn.style.cursor = canDn ? 'pointer' : 'default'; }
-      if (info) info.textContent = `⊞ ${data.breadcrumb || '(iframe)'}  (${(data.navIndex||0)+1}/${data.navPathLength})`;
-      // 保存坐标到 floater dataset（来自 iframe 的选择）
-      if (floater && data.selLeft != null) {
-        floater.dataset.selLeft = data.selLeft;
-        floater.dataset.selTop = data.selTop;
-        floater.dataset.selW = data.selW;
-        floater.dataset.selH = data.selH;
-        floater.dataset.fromIframe = '1';
-      }
-    } else {
-      if (upBtn) { upBtn.setAttribute('aria-disabled', 'false'); upBtn.style.opacity = '1'; upBtn.style.color = '#c1c2c5'; upBtn.style.cursor = 'pointer'; }
-      if (dnBtn) { dnBtn.setAttribute('aria-disabled', 'false'); dnBtn.style.opacity = '1'; dnBtn.style.color = '#c1c2c5'; dnBtn.style.cursor = 'pointer'; }
-      if (info) info.textContent = '';
-    }
+    // 导航功能已移除，仅记录来源
+    console.log('[蓝湖] 收到 iframe 结果:', data?.breadcrumb || '');
   }
 
   // ---- 事件 ----
@@ -850,10 +764,7 @@
 
     if (FRAME_CTX === 'top') {
       createFloater();
-      if (!createdByMe) {
-        console.log('[蓝湖] 非创建实例，跳过');
-        return;
-      }
+      if (!createdByMe) return;
       showFloater();
       setupMessageListener();
     }
@@ -895,13 +806,6 @@
     navPath = [];
     navIndex = -1;
     currentSelectedEl = null;
-    if (floater) {
-      floater._selected = null;
-      delete floater.dataset.selLeft;
-      delete floater.dataset.selTop;
-      delete floater.dataset.selW;
-      delete floater.dataset.selH;
-    }
     selectionLocked = false;
 
     console.log('[蓝湖提取器] 已退出');

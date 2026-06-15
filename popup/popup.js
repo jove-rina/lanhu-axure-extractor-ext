@@ -132,11 +132,10 @@
         pickerActive = true;
         DOM.btnPicker.textContent = '⏹ 退出拾取';
         DOM.btnPicker.classList.add('active');
-        setStatus('🎯 拾取模式已激活 — 点击选择 · 工具栏 ↑↓ 导航', 'busy');
+        setStatus('🎯 拾取模式已激活 — 点击选择 · 拖拽框选', 'busy');
           DOM.previewBody.innerHTML = `<p class="hint" style="color:#2b8a3e;font-weight:600;">
             🎯 拾取模式已激活<br><br>
             <b>🖱 点击元素</b> → 智能定位容器，自动提取内容<br>
-            <b>↕ 工具栏 ↑↓</b> → 点击"上一级/下一级"切换容器层级<br>
             <b>🔲 拖拽框选</b> → 画出一个矩形区域，自动识别表格<br>
             <b>📎 追加按钮</b> → 开启后多选累加内容<br>
             <b>👁 预览/源码</b> → 切换渲染视图<br>
@@ -304,7 +303,6 @@
           DOM.previewBody.innerHTML = `<p class="hint" style="color:#2b8a3e;font-weight:600;">
             🎯 拾取模式已在运行中（上次打开时未退出）<br><br>
             <b>🖱 点击元素</b> → 智能定位容器，自动提取内容<br>
-            <b>↕ 工具栏 ↑↓</b> → 点击"上一级/下一级"切换容器层级<br>
             <b>🔲 拖拽框选</b> → 画出一个矩形区域，自动识别表格<br>
             <b>📎 追加按钮</b> → 开启后多选累加内容<br>
             <b>👁 预览/源码</b> → 切换渲染视图<br>
