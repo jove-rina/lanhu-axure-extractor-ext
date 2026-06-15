@@ -240,8 +240,6 @@
     rubber.style.height = Math.abs(y2 - y1) + 'px';
   }
 
-  function removeRubber() { if (rubber) { rubber.remove(); rubber = null; } }
-
   // ==================== 智能容器定位 ====================
 
   function findContainer(el) {
