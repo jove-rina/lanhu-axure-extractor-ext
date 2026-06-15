@@ -12,6 +12,7 @@ Thumbs.db
 # Node
 node_modules/
 npm-debug.log*
+dist
 
 # Icon generation script (if any)
 gen_icon.py
