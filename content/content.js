@@ -162,11 +162,16 @@
 </div>`;
 
   function createFloater() {
-    if (document.getElementById('__lh_f')) return;
+    if (document.getElementById('__lh_f')) {
+      console.log('[蓝湖] createFloater → 已存在，跳过');
+      return;
+    }
+    console.log('[蓝湖] createFloater → 创建浮动面板');
     const d = document.createElement('div');
     d.innerHTML = HTML;
     document.body.appendChild(d.firstElementChild);
     floater = document.getElementById('__lh_f');
+    console.log('[蓝湖] createFloater → 完成, floater:', !!floater);
 
     // 按钮
     document.getElementById('__lh_f_x')?.addEventListener('click', (e) => { e.stopPropagation(); deactivate(); });
@@ -838,8 +843,12 @@
   }
 
   function deactivate() {
-    if (!active) return;
+    if (!active) {
+      console.log('[蓝湖] deactivate → 已是非活跃状态');
+      return;
+    }
     active = false;
+    console.log('[蓝湖] deactivate → 停用拾取模式');
 
     document.removeEventListener('mousedown', onMouseDown, true);
     document.removeEventListener('mousemove', onMouseMove, true);
