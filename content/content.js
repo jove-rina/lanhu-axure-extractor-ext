@@ -251,54 +251,51 @@
     // 容器导航：父级 / 子级（事件代理方式）
     floater.addEventListener('click', (e) => {
       const target = e.target;
-      console.log('[蓝湖] 浮动面板点击 — target.id:', target.id, 'floater._selected:', floater?._selected?.tagName || 'null', 'selectionLocked:', selectionLocked);
-      if (target.id === '__lh_f_up') {
+      if (target.id === '__lh_f_up' || target.id === '__lh_f_dn') {
         e.stopPropagation();
-        console.log('[蓝湖] ↑父级 按钮点击');
-        const sel = floater?._selected;
-        if (sel) {
-          const parent = sel.parentElement;
-          if (parent && parent !== document.body && parent !== document.documentElement) {
-            floater._selected = parent;
-            currentSelectedEl = parent;
-            navPath = buildPath(parent);
-            navIndex = Math.max(1, Math.min(navPath.indexOf(parent), Math.floor(navPath.length / 2), navPath.length - 2));
-            console.log('[蓝湖] ↑父级 →', parent.tagName, 'navPath:', navPath.length);
-            applyNavSelection();
-          } else {
+        const isUp = target.id === '__lh_f_up';
+        console.log('[蓝湖]', isUp ? '↑父级' : '↓子级', '按钮点击');
+
+        // 从高亮框 __lh_hh 的位置反查当前选中元素（不依赖任何变量）
+        const hh = document.getElementById('__lh_hh');
+        if (!hh || hh.style.display === 'none') {
+          setStatus('⚠️ 请先点击页面选择元素');
+          return;
+        }
+        const r = hh.getBoundingClientRect();
+        const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+        const current = document.elementFromPoint(cx, cy);
+        if (!current) { setStatus('⚠️ 无法定位选中元素'); return; }
+
+        let next = null;
+        if (isUp) {
+          // 父级 → parentElement
+          next = current.parentElement;
+          if (!next || next === document.body || next === document.documentElement) {
             setStatus('⚠️ 已在最顶层');
+            return;
           }
         } else {
-          setStatus('⚠️ 请先点击页面选择元素');
-        }
-      } else if (target.id === '__lh_f_dn') {
-        e.stopPropagation();
-        console.log('[蓝湖] ↓子级 按钮点击');
-        const sel = floater?._selected;
-        if (sel) {
-          const curIdx = navPath.indexOf(sel);
-          let child;
+          // 子级 → 从 navPath 找下一级 或 取第一个非 __lh_ 子元素
+          const curIdx = navPath.indexOf(current);
           if (curIdx >= 0 && curIdx < navPath.length - 1) {
-            child = navPath[curIdx + 1];
+            next = navPath[curIdx + 1];
           } else {
-            const children = Array.from(sel.children).filter(c =>
+            const children = Array.from(current.children).filter(c =>
               c.tagName !== 'BR' && !c.id?.startsWith?.('__lh_')
             );
-            child = children.length > 0 ? children[0] : null;
+            next = children.length > 0 ? children[0] : null;
           }
-          if (child) {
-            floater._selected = child;
-            currentSelectedEl = child;
-            navPath = buildPath(child);
-            navIndex = Math.max(1, Math.min(navPath.indexOf(child), Math.floor(navPath.length / 2), navPath.length - 2));
-            console.log('[蓝湖] ↓子级 →', child.tagName, 'navPath:', navPath.length);
-            applyNavSelection();
-          } else {
-            setStatus('⚠️ 已到最底层');
-          }
-        } else {
-          setStatus('⚠️ 请先点击页面选择元素');
+          if (!next) { setStatus('⚠️ 已到最底层'); return; }
         }
+
+        // 保存到所有引用，然后导航
+        currentSelectedEl = next;
+        if (floater) floater._selected = next;
+        navPath = buildPath(next);
+        navIndex = Math.max(1, Math.min(navPath.indexOf(next), Math.floor(navPath.length / 2), navPath.length - 2));
+        console.log('[蓝湖]', isUp ? '↑父级' : '↓子级', '→', next.tagName, 'navPath:', navPath.length);
+        applyNavSelection();
       }
     });
   }
