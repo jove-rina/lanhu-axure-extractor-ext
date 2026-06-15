@@ -261,8 +261,9 @@
   function startPick(mId, field) {
     activePickField = { moduleId: mId, field };
     pickMode = true;
-    console.log('[蓝湖] startPick:', mId, field, 'activePickField:', activePickField);
+    console.log('[蓝湖] startPick:', mId, field);
     setStatus(`🎯 点击页面元素拾取「${field === 'title' ? '标题' : '内容'}」`);
+    // 通知 iframe 进入拾取模式
     document.body.style.cursor = 'crosshair';
     document.body.style.userSelect = 'none';
     selectionLocked = false;
@@ -283,7 +284,6 @@
       const inp = document.getElementById(inpId);
       console.log('[蓝湖] finishPick inp:', inpId, !!inp);
       if (inp) {
-        inp.value = md;
         inp.value = md;
         inp.style.borderColor = '#373a40';
       }
@@ -858,18 +858,27 @@ th{background:#25262b}code{background:#25262b;padding:2px 5px;border-radius:3px}
       return;
     }
 
-    setContent(result.markdown, result.type);
+    // 旧版结果展示已移除，使用文档构建器的 🎯 按钮拾取
   }
 
   function onKeyDown(e) {
-    if (e.key === 'Escape') deactivate();
+    if (e.key === 'Escape') {
+      if (pickMode) {
+        cancelPick();
+      } else {
+        deactivate();
+      }
+    }
   }
 
   // ---- 接收 iframe 消息 ----
   function setupMessageListener() {
     window.addEventListener('message', (e) => {
       if (e.data && e.data.type === '__lh_picker_result' && e.data.markdown) {
-        setContent(e.data.markdown, (e.data.sourceType || 'text') + (e.data.navPathLength ? '' : ' (iframe)'));
+        // 若处于拾取模式，将 iframe 结果填入当前字段
+        if (pickMode && activePickField) {
+          finishPick(e.data.markdown);
+        }
         updateNavButtonsFromData(e.data);
       }
     });
