@@ -18,6 +18,8 @@
     "default_popup": "popup/popup.html",
     "default_title": "提取 Axure 需求内容",
     "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
       "128": "icons/icon128.png"
     }
   },
@@ -35,10 +37,5 @@
       "all_frames": true
     }
   ],
-  "web_accessible_resources": [
-    {
-      "resources": ["lib/*"],
-      "matches": ["*://lanhuapp.com/*", "*://*.lanhuapp.com/*"]
-    }
-  ]
+  "web_accessible_resources": []
 }
