@@ -240,19 +240,25 @@
       });
     }
 
-    // 容器导航：上一级 / 下一级
+    // 容器导航：父级 / 子级
     document.getElementById('__lh_f_up')?.addEventListener('click', (e) => {
       e.stopPropagation();
+      console.log('[蓝湖] ↑父级 click – navIndex:', navIndex, 'navPath.length:', navPath.length, 'canNav:', navIndex > 0);
       if (navIndex > 0) {
         navIndex--;
         applyNavSelection();
+      } else {
+        setStatus('⚠️ 已在最顶层，无法继续上移');
       }
     });
     document.getElementById('__lh_f_dn')?.addEventListener('click', (e) => {
       e.stopPropagation();
+      console.log('[蓝湖] ↓子级 click – navIndex:', navIndex, 'navPath.length:', navPath.length, 'canNav:', navIndex < navPath.length - 1);
       if (navIndex < navPath.length - 1) {
         navIndex++;
         applyNavSelection();
+      } else {
+        setStatus('⚠️ 已在最底层，无法继续下移');
       }
     });
   }
