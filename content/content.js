@@ -221,12 +221,13 @@
     if (e.button !== 0) return;
     // 点在浮动面板上则忽略
     if (e.target.closest && e.target.closest('#__lh_f')) return;
+    e.preventDefault();
     isDragging = true;
     selStartX = selEndX = e.clientX;
     selStartY = selEndY = e.clientY;
     createRubber();
     updateRubber(selStartX, selStartY, selEndX, selEndY);
-    setStatus('拖动选择区域...');
+    setStatus('拖拽选择区域...');
   }
 
   function onMouseMove(e) {
@@ -249,26 +250,32 @@
       return;
     }
 
-    setStatus('提取中...');
+    // 提取内容
+    const result = extractFromRect(selStartX, selStartY, selEndX, selEndY);
+    removeRubber();
 
-    // 如果是 iframe，发送结果到顶层 frame
-    if (FRAME_CTX !== 'top') {
-      try {
-        window.top.postMessage({ type: '__lh_picker_result', x1: selStartX, y1: selStartY, x2: selEndX, y2: selEndY }, '*');
-      } catch {}
-      setStatus('✅ 已发送到顶层页面');
-      removeRubber();
+    if (!result.markdown) {
+      setStatus('⚠️ 框选区域未提取到内容');
       return;
     }
 
-    // 顶层 frame：直接提取
-    const result = extractFromRect(selStartX, selStartY, selEndX, selEndY);
-    if (result.markdown) {
-      setContent(result.markdown, result.type);
-    } else {
-      setStatus('⚠️ 未提取到内容');
+    // 如果是 iframe，把提取结果文字发到顶层 frame 显示
+    if (FRAME_CTX !== 'top') {
+      try {
+        window.top.postMessage({
+          type: '__lh_picker_result',
+          markdown: result.markdown,
+          sourceType: result.type,
+        }, '*');
+        setStatus('✅ 结果已发送到顶层页面');
+      } catch {
+        setStatus('⚠️ 无法发送到顶层页面');
+      }
+      return;
     }
-    removeRubber();
+
+    // 顶层 frame：直接显示
+    setContent(result.markdown, result.type);
   }
 
   function onKeyDown(e) {
@@ -278,13 +285,8 @@
   // ---- 接收 iframe 消息 ----
   function setupMessageListener() {
     window.addEventListener('message', (e) => {
-      if (e.data && e.data.type === '__lh_picker_result') {
-        const result = extractFromRect(e.data.x1, e.data.y1, e.data.x2, e.data.y2);
-        if (result.markdown) {
-          setContent(result.markdown, result.type + ' (iframe)');
-        } else {
-          setStatus('⚠️ iframe 区域未提取到内容');
-        }
+      if (e.data && e.data.type === '__lh_picker_result' && e.data.markdown) {
+        setContent(e.data.markdown, (e.data.sourceType || 'text') + ' (iframe)');
       }
     });
   }
