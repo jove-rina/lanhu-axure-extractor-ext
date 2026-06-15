@@ -1,14 +1,15 @@
 {
   "manifest_version": 3,
-  "name": "蓝湖 Axure 需求提取器",
+  "name": "__MSG_appName__",
   "version": "1.0.0",
-  "description": "从蓝湖 Axure 原型页面中提取产品需求表格和内容，一键导出 Markdown",
+  "description": "__MSG_appDesc__",
+  "author": "Jove Rina",
+  "default_locale": "zh_CN",
   "permissions": [
     "activeTab",
     "storage",
     "scripting",
-    "webNavigation",
-    "capture"
+    "webNavigation"
   ],
   "host_permissions": [
     "*://lanhuapp.com/*",
@@ -32,10 +33,15 @@
         "*://lanhuapp.com/*",
         "*://*.lanhuapp.com/*"
       ],
-      "js": ["content/content.js"],
+      "js": ["content/marked.min.js", "content/content.js"],
       "run_at": "document_idle",
       "all_frames": true
     }
   ],
-  "web_accessible_resources": []
+  "web_accessible_resources": [
+    {
+      "resources": ["content/marked.min.js"],
+      "matches": ["*://lanhuapp.com/*", "*://*.lanhuapp.com/*"]
+    }
+  ]
 }

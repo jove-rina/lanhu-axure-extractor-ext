@@ -28,6 +28,37 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return;
   }
 
+  // 文档构建器：向所有 frame 广播（顶层显示浮窗，iframe 激活拾取能力）
+  if (request.action === 'open-builder') {
+    const tabId = request.tabId || sender.tab?.id;
+    if (!tabId) { sendResponse({ error: 'no tab' }); return; }
+    broadcastToFrames(tabId, { action: 'open-builder' }).then((r) => {
+      sendResponse({ status: 'ok', success: r.success, total: r.total });
+    });
+    return true;
+  }
+
+  // 同步拾取状态到所有 frame（🎯 按钮触发）
+  if (request.action === 'sync-pick-state') {
+    const tabId = request.tabId || sender.tab?.id;
+    if (!tabId) { sendResponse({ error: 'no tab' }); return; }
+    broadcastToFrames(tabId, {
+      action: 'set-pick-state',
+      moduleId: request.moduleId,
+      field: request.field,
+      entryIdx: request.entryIdx
+    }).then((r) => sendResponse(r));
+    return true;
+  }
+
+  // 取消拾取状态
+  if (request.action === 'cancel-pick-state') {
+    const tabId = request.tabId || sender.tab?.id;
+    if (!tabId) { sendResponse({ error: 'no tab' }); return; }
+    broadcastToFrames(tabId, { action: 'clear-pick-state' }).then((r) => sendResponse(r));
+    return true;
+  }
+
   // 启动捡取：向所有 frame 广播 + 记录状态
   if (request.action === 'start-picker') {
     const tabId = request.tabId;

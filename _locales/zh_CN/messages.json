@@ -1,0 +1,116 @@
+{
+  "appName": {
+    "message": "Axure Utilities"
+  },
+  "appDesc": {
+    "message": "从蓝湖 Axure 原型页面中提取产品需求内容，组装为 Markdown 文档"
+  },
+  "floaterTitle": {
+    "message": "文档构建"
+  },
+  "addModule": {
+    "message": "新增模块"
+  },
+  "expandCollapse": {
+    "message": "展开/收起所有"
+  },
+  "selectAll": {
+    "message": "全选"
+  },
+  "cancelSelectAll": {
+    "message": "取消全选"
+  },
+  "deleteSelected": {
+    "message": "删除"
+  },
+  "preview": {
+    "message": "预览"
+  },
+  "download": {
+    "message": "下载"
+  },
+  "close": {
+    "message": "关闭"
+  },
+  "title": {
+    "message": "标题"
+  },
+  "content": {
+    "message": "内容"
+  },
+  "pick": {
+    "message": "拾取"
+  },
+  "addEntry": {
+    "message": "新增"
+  },
+  "moveUp": {
+    "message": "上移"
+  },
+  "moveDown": {
+    "message": "下移"
+  },
+  "delete": {
+    "message": "删除"
+  },
+  "noContent": {
+    "message": "暂无内容，点击 🎯 拾取页面元素"
+  },
+  "emptyList": {
+    "message": "点击「新增模块」开始构建文档"
+  },
+  "pickTitle": {
+    "message": "拾取标题"
+  },
+  "pickContent": {
+    "message": "拾取内容"
+  },
+  "previewModule": {
+    "message": "预览此模块"
+  },
+  "deleteModule": {
+    "message": "删除此模块"
+  },
+  "statusModules": {
+    "message": "模块 $1 个$2"
+  },
+  "pageSwitched": {
+    "message": "页面已切换"
+  },
+  "pageSaved": {
+    "message": "数据已保存"
+  },
+  "pageSavedDesc": {
+    "message": "当前页面的模块数据已自动保存。如需继续编辑，请点击浏览器右上角扩展图标选择「打开文档构建器」"
+  },
+  "pageSwitchToast": {
+    "message": "📄 数据已保存"
+  },
+  "noMoreTip": {
+    "message": "不再提示"
+  },
+  "gotIt": {
+    "message": "我知道了 ($1s)"
+  },
+  "dismiss": {
+    "message": "知道了"
+  },
+  "builderReady": {
+    "message": "文档构建器已打开"
+  },
+  "pickActive": {
+    "message": "🎯 拾取已激活 — 在页面内容上点击提取"
+  },
+  "pickDone": {
+    "message": "✅ 已拾取 — 继续拾取将覆盖当前$1"
+  },
+  "saving": {
+    "message": "正在打开文档构建器..."
+  },
+  "notLanhu": {
+    "message": "⚠️ 不在蓝湖页面"
+  },
+  "refreshPage": {
+    "message": "⚠️ 请刷新页面后重试 ($1)"
+  }
+}

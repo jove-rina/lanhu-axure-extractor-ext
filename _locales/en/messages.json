@@ -1,0 +1,116 @@
+{
+  "appName": {
+    "message": "Axure Utilities"
+  },
+  "appDesc": {
+    "message": "Extract content from Axure prototypes on lanhuapp.com and compose Markdown documents"
+  },
+  "floaterTitle": {
+    "message": "Doc Builder"
+  },
+  "addModule": {
+    "message": "Add Module"
+  },
+  "expandCollapse": {
+    "message": "Expand / Collapse All"
+  },
+  "selectAll": {
+    "message": "Select All"
+  },
+  "cancelSelectAll": {
+    "message": "Deselect All"
+  },
+  "deleteSelected": {
+    "message": "Delete"
+  },
+  "preview": {
+    "message": "Preview"
+  },
+  "download": {
+    "message": "Download"
+  },
+  "close": {
+    "message": "Close"
+  },
+  "title": {
+    "message": "Title"
+  },
+  "content": {
+    "message": "Content"
+  },
+  "pick": {
+    "message": "Pick"
+  },
+  "addEntry": {
+    "message": "Add"
+  },
+  "moveUp": {
+    "message": "Move Up"
+  },
+  "moveDown": {
+    "message": "Move Down"
+  },
+  "delete": {
+    "message": "Delete"
+  },
+  "noContent": {
+    "message": "No content yet, click 🎯 to pick page elements"
+  },
+  "emptyList": {
+    "message": "Click \"Add Module\" to start building"
+  },
+  "pickTitle": {
+    "message": "Pick Title"
+  },
+  "pickContent": {
+    "message": "Pick Content"
+  },
+  "previewModule": {
+    "message": "Preview this module"
+  },
+  "deleteModule": {
+    "message": "Delete this module"
+  },
+  "statusModules": {
+    "message": "$1 module(s)$2"
+  },
+  "pageSwitched": {
+    "message": "Page Switched"
+  },
+  "pageSaved": {
+    "message": "Data saved"
+  },
+  "pageSavedDesc": {
+    "message": "Your module data has been auto-saved. Reopen from the extension icon to continue editing."
+  },
+  "pageSwitchToast": {
+    "message": "📄 Data saved"
+  },
+  "noMoreTip": {
+    "message": "Don't show again"
+  },
+  "gotIt": {
+    "message": "Got it ($1s)"
+  },
+  "dismiss": {
+    "message": "Dismiss"
+  },
+  "builderReady": {
+    "message": "Doc builder opened"
+  },
+  "pickActive": {
+    "message": "Pick active — click on page content to extract"
+  },
+  "pickDone": {
+    "message": "Picked — keeps picking will overwrite"
+  },
+  "saving": {
+    "message": "Opening..."
+  },
+  "notLanhu": {
+    "message": "⚠ Not on lanhuapp.com"
+  },
+  "refreshPage": {
+    "message": "⚠ Refresh page and retry"
+  }
+}

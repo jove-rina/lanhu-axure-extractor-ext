@@ -3,14 +3,26 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>蓝湖 Axure 提取器</title>
+  <title>Axure Utilities</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <div class="container">
-    <header>
-      <h1>📄 文档构建</h1>
-      <p class="subtitle">从蓝湖 Axure 原型中拾取内容，组装成 Markdown 文档</p>
+    <header style="display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <h1 id="popupTitle" style="display:flex;align-items:center;gap:6px;">
+          <svg viewBox="0 0 18 18" width="18" height="18" fill="none" stroke="#f08c00" stroke-width="1.5">
+            <path d="M9 3v12M3 9h12"/><circle cx="9" cy="9" r="7"/>
+          </svg>
+          Axure Utilities
+        </h1>
+        <p class="subtitle" id="popupSubtitle"></p>
+      </div>
+      <select id="langSelect" style="appearance:none;background:#25262b;color:#909296;border:1px solid #373a40;border-radius:5px;padding:4px 24px 4px 8px;font-size:11px;font-family:inherit;cursor:pointer;outline:none;background-image:url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%226%22%3E%3Cpath d=%22M0 0l5 6 5-6%22 fill=%22%23909296%22/%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right 6px center;margin-left:12px;align-self:flex-start;margin-top:2px;">
+        <option value="auto">🌐 Auto</option>
+        <option value="zh_CN">🇨🇳 中文</option>
+        <option value="en">🇬🇧 English</option>
+      </select>
     </header>
 
     <div class="status-bar" id="statusBar">
@@ -25,7 +37,8 @@
     </div>
 
     <footer>
-      <span class="footer-info">v2.0 · 文档构建模式</span>
+      <div class="footer-author">Author: Jove Rina</div>
+      <div class="footer-version">v1.0.0</div>
     </footer>
   </div>
 
