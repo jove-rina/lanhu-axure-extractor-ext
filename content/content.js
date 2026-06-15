@@ -115,6 +115,7 @@
 
   let selStartX = 0, selStartY = 0, selEndX = 0, selEndY = 0;
   let isDragging = false;
+  let selectionLocked = false; // 点击选择后锁定高亮，hover 不覆盖
 
   // ---- 浮动面板 ----
 
@@ -648,6 +649,7 @@
     if (e.button !== 0) return;
     if (e.target.closest && e.target.closest('#__lh_f')) return;
     hideHighlight();
+    selectionLocked = false; // 新点击 → 解锁，准备选择新元素
     e.preventDefault();
     isDragging = true;
     selStartX = selEndX = e.clientX;
@@ -665,6 +667,8 @@
       return;
     }
     if (!active) return;
+    // 点击选择后锁定高亮，hover 不覆盖定位框
+    if (selectionLocked) return;
     const el = document.elementFromPoint(e.clientX, e.clientY);
     if (!el || el.id?.startsWith('__lh_')) { hideHighlight(); return; }
     const container = findContainer(el);
@@ -715,6 +719,7 @@
       navIndex = Math.max(1, Math.min(startIdx, midIdx, navPath.length - 2));
       console.log('[蓝湖提取器] navIndex:', navIndex, 'up:', navIndex > 0, 'down:', navIndex < navPath.length - 1);
 
+      selectionLocked = true;
       applyNavSelection();
       return;
     }
@@ -800,6 +805,7 @@
     // 清理导航状态
     navPath = [];
     navIndex = -1;
+    selectionLocked = false;
 
     console.log('[蓝湖提取器] 已退出');
   }
