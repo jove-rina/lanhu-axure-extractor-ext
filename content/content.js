@@ -130,7 +130,7 @@
   <div id="__lh_f_b" style="padding:12px;overflow-y:auto;max-height:380px;white-space:pre-wrap;font-size:12px;line-height:1.6;color:#909296;"></div>
   <div style="padding:6px 14px;background:#25262b;border-top:1px solid #373a40;font-size:11px;color:#5c5f66;
     display:flex;justify-content:space-between;">
-    <span id="__lh_f_s">拖拽框选区域进行提取</span>
+    <span id="__lh_f_s">点击元素精准拾取，或拖拽框选区域提取</span>
     <span>ESC 退出</span>
   </div>
 </div>`;
