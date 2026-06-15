@@ -243,19 +243,23 @@
     // 容器导航：父级 / 子级（事件代理方式）
     floater.addEventListener('click', (e) => {
       const target = e.target;
+      console.log('[蓝湖] 浮动面板点击 — target.id:', target.id, 'currentSelectedEl:', currentSelectedEl?.tagName || 'null', 'selectionLocked:', selectionLocked);
       if (target.id === '__lh_f_up') {
         e.stopPropagation();
-        console.log('[蓝湖] ↑父级 按钮点击');
-        if (currentSelectedEl && currentSelectedEl.parentElement && currentSelectedEl.parentElement !== document.body) {
-          currentSelectedEl = currentSelectedEl.parentElement;
-          navPath = buildPath(currentSelectedEl);
-          navIndex = Math.max(1, Math.min(navPath.indexOf(currentSelectedEl), Math.floor(navPath.length / 2), navPath.length - 2));
-          console.log('[蓝湖] ↑父级 →', currentSelectedEl.tagName, 'navPath:', navPath.length);
-          applyNavSelection();
-        } else if (!currentSelectedEl) {
-          setStatus('⚠️ 请先点击页面选择元素');
+        console.log('[蓝湖] ↑父级 按钮点击 — currentSelectedEl:', !!currentSelectedEl);
+        if (currentSelectedEl) {
+          const parent = currentSelectedEl.parentElement;
+          if (parent && parent !== document.body && parent !== document.documentElement) {
+            currentSelectedEl = parent;
+            navPath = buildPath(currentSelectedEl);
+            navIndex = Math.max(1, Math.min(navPath.indexOf(currentSelectedEl), Math.floor(navPath.length / 2), navPath.length - 2));
+            console.log('[蓝湖] ↑父级 →', currentSelectedEl.tagName, 'navPath:', navPath.length);
+            applyNavSelection();
+          } else {
+            setStatus('⚠️ 已在最顶层');
+          }
         } else {
-          setStatus('⚠️ 已在最顶层');
+          setStatus('⚠️ 请先点击页面选择元素');
         }
       } else if (target.id === '__lh_f_dn') {
         e.stopPropagation();
@@ -628,6 +632,7 @@
       return;
     }
     currentSelectedEl = el;
+    console.log('[蓝湖] currentSelectedEl 已设置:', el.tagName, 'id:', el.id || '-', 'classes:', (el.className || '').slice(0,40));
 
     highlightEl(el);
     trackContainerRect(el);
