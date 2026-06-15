@@ -16,6 +16,9 @@
     chrome.runtime.sendMessage({ action: 'content-reloaded' }).catch(() => {});
   }
 
+  // 每个 frame 的标识，用于日志区分
+  const frameTag = FRAME_CTX === 'top' ? '[T ]' : '[IF]';
+
   // ==================== 工具 ====================
 
   function getFrameContext() {
@@ -243,17 +246,19 @@
     // 容器导航：父级 / 子级（事件代理方式）
     floater.addEventListener('click', (e) => {
       const target = e.target;
-      console.log('[蓝湖] 浮动面板点击 — target.id:', target.id, 'currentSelectedEl:', currentSelectedEl?.tagName || 'null', 'selectionLocked:', selectionLocked);
+      console.log('[蓝湖] 浮动面板点击 — target.id:', target.id, 'floater._selected:', floater?._selected?.tagName || 'null', 'selectionLocked:', selectionLocked);
       if (target.id === '__lh_f_up') {
         e.stopPropagation();
-        console.log('[蓝湖] ↑父级 按钮点击 — currentSelectedEl:', !!currentSelectedEl);
-        if (currentSelectedEl) {
-          const parent = currentSelectedEl.parentElement;
+        console.log('[蓝湖] ↑父级 按钮点击');
+        const sel = floater?._selected;
+        if (sel) {
+          const parent = sel.parentElement;
           if (parent && parent !== document.body && parent !== document.documentElement) {
+            floater._selected = parent;
             currentSelectedEl = parent;
-            navPath = buildPath(currentSelectedEl);
-            navIndex = Math.max(1, Math.min(navPath.indexOf(currentSelectedEl), Math.floor(navPath.length / 2), navPath.length - 2));
-            console.log('[蓝湖] ↑父级 →', currentSelectedEl.tagName, 'navPath:', navPath.length);
+            navPath = buildPath(parent);
+            navIndex = Math.max(1, Math.min(navPath.indexOf(parent), Math.floor(navPath.length / 2), navPath.length - 2));
+            console.log('[蓝湖] ↑父级 →', parent.tagName, 'navPath:', navPath.length);
             applyNavSelection();
           } else {
             setStatus('⚠️ 已在最顶层');
@@ -264,25 +269,28 @@
       } else if (target.id === '__lh_f_dn') {
         e.stopPropagation();
         console.log('[蓝湖] ↓子级 按钮点击');
-        if (currentSelectedEl) {
-          const curIdx = navPath.indexOf(currentSelectedEl);
+        const sel = floater?._selected;
+        if (sel) {
+          const curIdx = navPath.indexOf(sel);
+          let child;
           if (curIdx >= 0 && curIdx < navPath.length - 1) {
-            currentSelectedEl = navPath[curIdx + 1];
+            child = navPath[curIdx + 1];
           } else {
-            const children = Array.from(currentSelectedEl.children).filter(c =>
+            const children = Array.from(sel.children).filter(c =>
               c.tagName !== 'BR' && !c.id?.startsWith?.('__lh_')
             );
-            if (children.length > 0) {
-              currentSelectedEl = children[0];
-            } else {
-              setStatus('⚠️ 已到最底层');
-              return;
-            }
+            child = children.length > 0 ? children[0] : null;
           }
-          navPath = buildPath(currentSelectedEl);
-          navIndex = Math.max(1, Math.min(navPath.indexOf(currentSelectedEl), Math.floor(navPath.length / 2), navPath.length - 2));
-          console.log('[蓝湖] ↓子级 →', currentSelectedEl.tagName, 'navPath:', navPath.length);
-          applyNavSelection();
+          if (child) {
+            floater._selected = child;
+            currentSelectedEl = child;
+            navPath = buildPath(child);
+            navIndex = Math.max(1, Math.min(navPath.indexOf(child), Math.floor(navPath.length / 2), navPath.length - 2));
+            console.log('[蓝湖] ↓子级 →', child.tagName, 'navPath:', navPath.length);
+            applyNavSelection();
+          } else {
+            setStatus('⚠️ 已到最底层');
+          }
         } else {
           setStatus('⚠️ 请先点击页面选择元素');
         }
@@ -633,6 +641,8 @@
     }
     currentSelectedEl = el;
     console.log('[蓝湖] currentSelectedEl 已设置:', el.tagName, 'id:', el.id || '-', 'classes:', (el.className || '').slice(0,40));
+    // 也存到 floater DOM 对象上（防跨域变量同步丢失）
+    if (floater) floater._selected = el;
 
     highlightEl(el);
     trackContainerRect(el);
@@ -848,6 +858,7 @@
     navPath = [];
     navIndex = -1;
     currentSelectedEl = null;
+    if (floater) floater._selected = null;
     selectionLocked = false;
 
     console.log('[蓝湖提取器] 已退出');
