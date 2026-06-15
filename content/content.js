@@ -122,10 +122,10 @@
 
   // ---- 文档构建器 — 模块管理 ----
 
-  let modules = [];           // { id, title, content }
+  let modules = [];           // { id, title, contents: [] }
   let nextModuleId = 1;
-  let activePickField = null; // 当前等待拾取的字段 { moduleId, field: 'title'|'content' }
-  let pickMode = false;       // 是否处于拾取模式（点击元素提取到字段）
+  let activePickField = null; // { moduleId, entryIdx?, field: 'title'|'content' }
+  let pickMode = false;
 
   // ---- 浮动面板 ----
 
@@ -155,7 +155,7 @@
   // ---- 模块管理 ----
 
   function addModule() {
-    const m = { id: nextModuleId++, title: '', content: '' };
+    const m = { id: nextModuleId++, title: '', contents: [] };
     modules.push(m);
     renderModuleList();
     setStatus(`模块 ${modules.length} 个`);
@@ -181,11 +181,36 @@
     if (m) m[field] = val;
   }
 
+  // ---- 内容条目管理 ----
+  function addContentEntry(moduleId) {
+    const m = modules.find(x => x.id === moduleId);
+    if (m) { m.contents.push(''); renderModuleList(); }
+  }
+
+  function removeContentEntry(moduleId, entryIdx) {
+    const m = modules.find(x => x.id === moduleId);
+    if (m) { m.contents.splice(entryIdx, 1); renderModuleList(); }
+  }
+
+  function moveContentEntry(moduleId, entryIdx, dir) {
+    const m = modules.find(x => x.id === moduleId);
+    if (!m) return;
+    const to = entryIdx + dir;
+    if (to < 0 || to >= m.contents.length) return;
+    [m.contents[entryIdx], m.contents[to]] = [m.contents[to], m.contents[entryIdx]];
+    renderModuleList();
+  }
+
+  function setContentEntry(moduleId, entryIdx, val) {
+    const m = modules.find(x => x.id === moduleId);
+    if (m && m.contents[entryIdx] !== undefined) m.contents[entryIdx] = val;
+  }
+
   function getFullMarkdown() {
-    return modules.map((m, i) => {
+    return modules.map((m) => {
       const parts = [];
       if (m.title) parts.push(`# ${m.title}`);
-      if (m.content) parts.push(m.content);
+      m.contents.forEach(c => { if (c) parts.push(c); });
       return parts.join('\n\n');
     }).filter(Boolean).join('\n\n---\n\n');
   }
@@ -196,37 +221,49 @@
     const list = document.getElementById('__lh_f_list');
     if (!list) return;
     if (modules.length === 0) {
-      list.innerHTML = '<div style="text-align:center;padding:30px 0;color:#5c5f66;font-size:13px;">点击「➕ 新增模块」开始构建文档<br>每个模块包含标题和内容，均可从页面拾取</div>';
+      list.innerHTML = '<div style="text-align:center;padding:30px 0;color:#5c5f66;font-size:13px;">点击「➕ 新增模块」开始构建文档</div>';
       return;
     }
-    list.innerHTML = modules.map((m, i) => `
+    list.innerHTML = modules.map((m, mi) => `
 <div style="background:#25262b;border:1px solid #373a40;border-radius:6px;padding:8px 10px;margin-bottom:6px;">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-    <span style="color:#909296;font-size:11px;font-weight:600;">模块 ${i + 1}</span>
+    <span style="color:#909296;font-size:11px;font-weight:600;">模块 ${mi + 1}</span>
     <div style="display:flex;gap:3px;">
-      <button data-mv="${m.id}" data-dir="-1" style="background:#373a40;color:#909296;border:none;border-radius:3px;padding:1px 6px;font-size:10px;cursor:pointer;" ${i === 0 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>↑</button>
-      <button data-mv="${m.id}" data-dir="1" style="background:#373a40;color:#909296;border:none;border-radius:3px;padding:1px 6px;font-size:10px;cursor:pointer;" ${i === modules.length - 1 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>↓</button>
+      <button data-mv="${m.id}" data-dir="-1" style="background:#373a40;color:#909296;border:none;border-radius:3px;padding:1px 6px;font-size:10px;cursor:pointer;" ${mi === 0 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>↑</button>
+      <button data-mv="${m.id}" data-dir="1" style="background:#373a40;color:#909296;border:none;border-radius:3px;padding:1px 6px;font-size:10px;cursor:pointer;" ${mi === modules.length - 1 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>↓</button>
       <button data-rm="${m.id}" style="background:transparent;color:#e03131;border:1px solid #e03131;border-radius:3px;padding:1px 6px;font-size:10px;cursor:pointer;">✕</button>
     </div>
   </div>
   <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px;">
     <span style="font-size:11px;color:#909296;white-space:nowrap;">📝 标题</span>
-    <input id="__lh_mt_${m.id}" value="${escHtml(m.title)}" placeholder="模块标题（可拾取）" style="flex:1;background:#1a1b1e;border:1px solid #373a40;border-radius:3px;padding:3px 6px;font-size:11px;color:#c1c2c5;outline:none;">
-    <button data-pick="${m.id}:title" style="background:#f08c00;color:#fff;border:none;border-radius:3px;padding:2px 6px;font-size:10px;cursor:pointer;">🎯</button>
+    <input id="__lh_mt_${m.id}" value="${escHtml(m.title)}" placeholder="模块标题" style="flex:1;background:#1a1b1e;border:1px solid #373a40;border-radius:3px;padding:3px 6px;font-size:11px;color:#c1c2c5;outline:none;">
+    <button data-pick="${m.id}:title" style="background:#f08c00;color:#fff;border:none;border-radius:3px;padding:2px 6px;font-size:10px;cursor:pointer;" title="拾取标题">🎯</button>
   </div>
-  <div style="display:flex;align-items:flex-start;gap:4px;">
-    <span style="font-size:11px;color:#909296;white-space:nowrap;margin-top:3px;">📋 内容</span>
-    <textarea id="__lh_mc_${m.id}" placeholder="模块内容（可拾取）" rows="2" style="flex:1;background:#1a1b1e;border:1px solid #373a40;border-radius:3px;padding:3px 6px;font-size:11px;color:#c1c2c5;outline:none;resize:vertical;font-family:inherit;line-height:1.4;">${escHtml(m.content)}</textarea>
-    <button data-pick="${m.id}:content" style="background:#f08c00;color:#fff;border:none;border-radius:3px;padding:2px 6px;font-size:10px;cursor:pointer;margin-top:2px;">🎯</button>
+  <div style="margin-top:4px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">
+      <span style="font-size:10px;color:#5c5f66;">📋 内容条目</span>
+      <button data-addc="${m.id}" style="background:#2b8a3e;color:#fff;border:none;border-radius:3px;padding:1px 8px;font-size:10px;cursor:pointer;">➕ 条目</button>
+    </div>
+    ${(m.contents.length === 0 ? '<div style="font-size:10px;color:#5c5f66;padding:4px 0;">暂无内容，点击🎯拾取或➕添加</div>' :
+      m.contents.map((c, ci) => `
+    <div style="display:flex;align-items:flex-start;gap:3px;margin-bottom:3px;">
+      <textarea id="__lh_mc_${m.id}_${ci}" rows="1" placeholder="内容 ${ci+1}" style="flex:1;background:#1a1b1e;border:1px solid #373a40;border-radius:3px;padding:2px 5px;font-size:10px;color:#c1c2c5;outline:none;resize:vertical;font-family:inherit;line-height:1.3;min-height:20px;">${escHtml(c)}</textarea>
+      <button data-pick="${m.id}:content:${ci}" style="background:#f08c00;color:#fff;border:none;border-radius:3px;padding:2px 5px;font-size:9px;cursor:pointer;" title="拾取到本条">🎯</button>
+      <button data-mvc="${m.id}:${ci}:-1" style="background:#373a40;color:#909296;border:none;border-radius:3px;padding:2px 5px;font-size:9px;cursor:pointer;" ${ci === 0 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>↑</button>
+      <button data-mvc="${m.id}:${ci}:1" style="background:#373a40;color:#909296;border:none;border-radius:3px;padding:2px 5px;font-size:9px;cursor:pointer;" ${ci === m.contents.length - 1 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>↓</button>
+      <button data-rmc="${m.id}:${ci}" style="background:transparent;color:#e03131;border:1px solid #e03131;border-radius:3px;padding:2px 5px;font-size:9px;cursor:pointer;">✕</button>
+    </div>`).join(''))}
   </div>
 </div>`).join('');
 
-    // 绑定模块事件
+    // 绑定事件
     list.querySelectorAll('[data-pick]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const [mid, field] = btn.dataset.pick.split(':');
-        startPick(parseInt(mid), field);
+        const parts = btn.dataset.pick.split(':');
+        const mid = parseInt(parts[0]), field = parts[1];
+        const entryIdx = parts[2] !== undefined ? parseInt(parts[2]) : undefined;
+        startPick(mid, field, entryIdx);
       });
     });
     list.querySelectorAll('[data-rm]').forEach(btn => {
@@ -235,18 +272,24 @@
     list.querySelectorAll('[data-mv]').forEach(btn => {
       btn.addEventListener('click', (e) => { e.stopPropagation(); moveModule(parseInt(btn.dataset.mv), parseInt(btn.dataset.dir)); });
     });
+    list.querySelectorAll('[data-addc]').forEach(btn => {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); addContentEntry(parseInt(btn.dataset.addc)); });
+    });
+    list.querySelectorAll('[data-rmc]').forEach(btn => {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); const p = btn.dataset.rmc.split(':'); removeContentEntry(parseInt(p[0]), parseInt(p[1])); });
+    });
+    list.querySelectorAll('[data-mvc]').forEach(btn => {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); const p = btn.dataset.mvc.split(':'); moveContentEntry(parseInt(p[0]), parseInt(p[1]), parseInt(p[2])); });
+    });
 
     // 输入框实时同步
     list.querySelectorAll('input[id^="__lh_mt_"]').forEach(inp => {
-      inp.addEventListener('input', () => {
-        const id = parseInt(inp.id.replace('__lh_mt_', ''));
-        setModuleField(id, 'title', inp.value);
-      });
+      inp.addEventListener('input', () => { setModuleField(parseInt(inp.id.replace('__lh_mt_', '')), 'title', inp.value); });
     });
-    list.querySelectorAll('textarea[id^="__lh_mc_"]').forEach(ta => {
+    list.querySelectorAll('textarea').forEach(ta => {
       ta.addEventListener('input', () => {
-        const id = parseInt(ta.id.replace('__lh_mc_', ''));
-        setModuleField(id, 'content', ta.value);
+        const m = ta.id.match(/__lh_mc_(\d+)_(\d+)/);
+        if (m) setContentEntry(parseInt(m[1]), parseInt(m[2]), ta.value);
       });
     });
   }
@@ -258,41 +301,63 @@
 
   // ---- 拾取到字段 ----
 
-  function startPick(mId, field) {
-    activePickField = { moduleId: mId, field };
+  function startPick(mId, field, entryIdx) {
+    activePickField = { moduleId: mId, field, entryIdx };
     pickMode = true;
-    console.log('[蓝湖] startPick:', mId, field);
-    setStatus(`🎯 点击页面元素拾取「${field === 'title' ? '标题' : '内容'}」`);
-    // 通知 iframe 进入拾取模式
+    setStatus(`🎯 持续拾取中 — 点击页面元素，${field === 'title' ? '替换标题' : '追加内容'}`);
     document.body.style.cursor = 'crosshair';
     document.body.style.userSelect = 'none';
-    selectionLocked = false;
 
-    // 高亮拾取字段对应的输入框
-    const inp = document.getElementById(field === 'title' ? `__lh_mt_${mId}` : `__lh_mc_${mId}`);
+    // 清除所有高亮，点亮当前拾取目标
+    document.querySelectorAll('[id^="__lh_mt_"],[id^="__lh_mc_"]').forEach(el => el.style.borderColor = '#373a40');
+    const targetId = field === 'title' ? `__lh_mt_${mId}` : `__lh_mc_${mId}_${entryIdx}`;
+    const inp = document.getElementById(targetId);
     if (inp) inp.style.borderColor = '#f08c00';
+
+    // 清空旧高亮并设置新高亮
+    hideHighlight();
   }
 
   function finishPick(md) {
-    if (!activePickField) { console.log('[蓝湖] finishPick: no activePickField'); return; }
-    const { moduleId, field } = activePickField;
-    console.log('[蓝湖] finishPick:', moduleId, field, 'md length:', md?.length);
+    if (!activePickField) return;
+    const { moduleId, field, entryIdx } = activePickField;
     const m = modules.find(x => x.id === moduleId);
-    if (m) {
-      m[field] = md;
-      const inpId = field === 'title' ? `__lh_mt_${moduleId}` : `__lh_mc_${moduleId}`;
-      const inp = document.getElementById(inpId);
-      console.log('[蓝湖] finishPick inp:', inpId, !!inp);
-      if (inp) {
-        inp.value = md;
-        inp.style.borderColor = '#373a40';
+    if (!m) return;
+
+    if (field === 'title') {
+      // 标题：替换
+      m.title = md;
+      const inp = document.getElementById(`__lh_mt_${moduleId}`);
+      if (inp) { inp.value = md; }
+    } else {
+      // 内容：追加到指定条目或新建条目
+      if (entryIdx !== undefined && m.contents[entryIdx] !== undefined) {
+        // 替换指定条目
+        const separator = m.contents[entryIdx] ? '\n\n---\n\n' : '';
+        m.contents[entryIdx] = m.contents[entryIdx] + separator + md;
+      } else {
+        // 追加新条目
+        m.contents.push(md);
+      }
+      // 更新输入框
+      const entries = m.contents.length;
+      const targetId = entryIdx !== undefined ? `__lh_mc_${moduleId}_${entryIdx}` : null;
+      if (targetId) {
+        const ta = document.getElementById(targetId);
+        if (ta) ta.value = m.contents[entryIdx];
+      }
+      // 新增的条目不刷新列表，直接追加 textarea（避免闪烁）
+      if (entryIdx === undefined) {
+        renderModuleList();
       }
     }
-    activePickField = null;
-    pickMode = false;
-    document.body.style.cursor = '';
-    document.body.style.userSelect = '';
-    setStatus(`✅ 已填入「${field === 'title' ? '标题' : '内容'}」`);
+
+    // 持续拾取：不清除 mode，更新状态提示
+    setStatus(`✅ 已拾取 — 继续点击页面${field === 'title' ? '替换标题' : '追加内容'}，或按 ESC 结束`);
+    hideHighlight();
+    // 保持光标为十字
+    document.body.style.cursor = 'crosshair';
+    document.body.style.userSelect = 'none';
   }
 
   function cancelPick() {
@@ -312,13 +377,32 @@
   function showPreview() {
     const md = getFullMarkdown();
     if (!md) { setStatus('⚠️ 暂无内容'); return; }
-    // 在新窗口预览
-    const w = window.open('', '_blank', 'width=800,height=600');
+    const w = window.open('', '_blank', 'width=900,height=700');
     if (!w) { setStatus('⚠️ 请允许弹出窗口'); return; }
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>文档预览</title>
-<style>body{background:#1a1b1e;color:#c1c2c5;font:14px -apple-system,sans-serif;padding:40px;max-width:800px;margin:auto;line-height:1.8}
-h1,h2,h3{color:#f08c00}table{border-collapse:collapse;width:100%;margin:10px 0}th,td{border:1px solid #373a40;padding:6px 10px;text-align:left}
-th{background:#25262b}code{background:#25262b;padding:2px 5px;border-radius:3px}hr{border:none;border-top:1px solid #373a40}pre{background:#25262b;padding:10px;border-radius:4px}</style></head><body>${renderMarkdown(md)}</body></html>`);
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"><\/script>
+<style>
+body{background:#1a1b1e;color:#c1c2c5;font:15px -apple-system,BlinkMacSystemFont,'PingFang SC','Noto Sans SC',sans-serif;padding:40px;max-width:800px;margin:auto;line-height:1.8}
+h1,h2,h3,h4{color:#f08c00;font-weight:600;margin:24px 0 12px}
+h1{border-bottom:1px solid #373a40;padding-bottom:8px}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid #373a40;padding:8px 12px;text-align:left}
+th{background:#25262b;color:#e0e0e0;font-weight:600}
+tr:nth-child(even){background:rgba(255,255,255,0.02)}
+code{background:#25262b;padding:2px 6px;border-radius:3px;font-size:13px;color:#f08c00}
+pre{background:#25262b;padding:12px 16px;border-radius:6px;overflow-x:auto;font-size:13px;line-height:1.5}
+pre code{background:none;padding:0;color:#c1c2c5}
+blockquote{border-left:3px solid #f08c00;margin:12px 0;padding:4px 16px;color:#909296}
+hr{border:none;border-top:1px solid #373a40;margin:24px 0}
+a{color:#f08c00;text-decoration:none}
+a:hover{text-decoration:underline}
+ul,ol{padding-left:24px;margin:8px 0}
+li{margin:4px 0}
+img{max-width:100%;border-radius:4px}
+</style></head><body><div id="content"></div>
+<script>
+document.getElementById('content').innerHTML = marked.parse(${JSON.stringify(md)});
+<\/script></body></html>`);
     w.document.close();
     setStatus('✅ 预览已打开');
   }
