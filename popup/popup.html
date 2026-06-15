@@ -9,8 +9,8 @@
 <body>
   <div class="container">
     <header>
-      <h1>📋 Axure 需求提取器</h1>
-      <p class="subtitle">从蓝湖 Axure 原型中提取表格和需求内容 → Markdown</p>
+      <h1>📄 文档构建</h1>
+      <p class="subtitle">从蓝湖 Axure 原型中拾取内容，组装成 Markdown 文档</p>
     </header>
 
     <div class="status-bar" id="statusBar">
@@ -18,45 +18,14 @@
       <span id="statusText">就绪</span>
     </div>
 
-    <div class="tab-info" id="tabInfo">
-      <div class="label">当前页面：</div>
-      <div class="value" id="currentPage">-</div>
-    </div>
-
     <div class="actions">
-      <button id="btnExtract" class="btn btn-primary">
-        🔍 提取需求内容
+      <button id="btnBuilder" class="btn btn-primary">
+        📄 打开文档构建器
       </button>
-      <button id="btnPicker" class="btn btn-accent">
-        🎯 拾取模式
-      </button>
-    </div>
-
-    <div class="actions actions-secondary">
-      <button id="btnDownload" class="btn btn-secondary" disabled>
-        💾 下载 Markdown
-      </button>
-      <button id="btnCopy" class="btn btn-outline" disabled>
-        📋 复制
-      </button>
-      <button id="btnDiagnose" class="btn btn-outline btn-sm" disabled>
-        🔬 诊断
-      </button>
-    </div>
-
-    <div class="preview-area" id="previewArea">
-      <div class="preview-header">
-        <span class="preview-title">提取预览</span>
-        <span class="preview-count" id="previewCount">-</span>
-      </div>
-      <div class="preview-meta" id="previewMeta"></div>
-      <div class="preview-body" id="previewBody">
-        <p class="hint">点击「提取需求内容」自动扫描全页<br>或点击「🎯 拾取模式」手动选择元素</p>
-      </div>
     </div>
 
     <footer>
-      <span class="footer-info">v1.1 · 新增拾取模式</span>
+      <span class="footer-info">v2.0 · 文档构建模式</span>
     </footer>
   </div>
 

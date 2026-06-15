@@ -120,115 +120,238 @@
   let isDragging = false;
   let selectionLocked = false; // 点击选择后锁定高亮，hover 不覆盖
 
+  // ---- 文档构建器 — 模块管理 ----
+
+  let modules = [];           // { id, title, content }
+  let nextModuleId = 1;
+  let activePickField = null; // 当前等待拾取的字段 { moduleId, field: 'title'|'content' }
+  let pickMode = false;       // 是否处于拾取模式（点击元素提取到字段）
+
   // ---- 浮动面板 ----
 
   const HTML = `
 <div id="__lh_f" style="all:initial;position:fixed;z-index:2147483647;bottom:20px;right:20px;
-  width:420px;max-height:500px;background:#1a1b1e;border:1px solid #373a40;border-radius:8px;
+  width:440px;max-height:70vh;background:#1a1b1e;border:1px solid #373a40;border-radius:8px;
   box-shadow:0 8px 32px rgba(0,0,0,0.5);font:13px -apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif;
   color:#c1c2c5;display:none;flex-direction:column;overflow:hidden;">
   <div id="__lh_f_h" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;
     background:#25262b;border-bottom:1px solid #373a40;cursor:move;user-select:none;">
-    <span style="color:#f08c00;font-weight:600;font-size:13px;">🎯 拾取</span>
-    <div style="display:flex;gap:4px;">
-      <button id="__lh_f_ap" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;transition:all 0.15s;">📎 追加</button>
-      <button id="__lh_f_pv" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;transition:all 0.15s;">👁</button>
-      <button id="__lh_f_cp" style="background:#2b8a3e;color:#fff;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;">📋</button>
-      <button id="__lh_f_dl" style="background:#f08c00;color:#fff;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;">💾</button>
-      <button id="__lh_f_x" style="background:transparent;color:#909296;border:1px solid #373a40;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;">✕</button>
-    </div>
+    <span style="color:#f08c00;font-weight:600;font-size:13px;">📄 文档构建</span>
+    <button id="__lh_f_x" style="background:transparent;color:#909296;border:1px solid #373a40;border-radius:4px;padding:2px 10px;font-size:12px;cursor:pointer;">✕</button>
   </div>
-  <div id="__lh_f_b" style="padding:12px;overflow-y:auto;max-height:380px;white-space:pre-wrap;font-size:12px;line-height:1.6;color:#909296;"></div>
-  <div id="__lh_f_img" style="display:none;padding:0 12px 12px;text-align:center;">
-    <img id="__lh_f_img_src" style="max-width:100%;border-radius:4px;border:1px solid #373a40;cursor:pointer;">
-    <div style="font-size:10px;color:#5c5f66;margin-top:4px;">点击图片查看原图</div>
+  <div id="__lh_f_tb" style="display:flex;gap:6px;padding:8px 14px;border-bottom:1px solid #25262b;">
+    <button id="__lh_f_add" style="background:#f08c00;color:#fff;border:none;border-radius:4px;padding:4px 12px;font-size:12px;cursor:pointer;">➕ 新增模块</button>
   </div>
-  <div id="__lh_f_sc_btns" style="display:flex;gap:4px;padding:4px 12px 8px;border-top:1px solid #25262b;flex-wrap:wrap;">
-    <button data-sc="fullscreen" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">🖥 全屏</button>
-    <button data-sc="fullpage" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">📄 整页</button>
-    <button data-sc="container" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">🎯 容器</button>
-    <button data-sc="multi" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">➕ 多选</button>
-  </div>
-  <div style="padding:6px 14px;background:#25262b;border-top:1px solid #373a40;font-size:11px;color:#5c5f66;
-    display:flex;justify-content:space-between;">
-    <span id="__lh_f_s">点击选择容器 · 拖拽框选提取 · ESC退出</span>
-    <span>ESC 退出</span>
+  <div id="__lh_f_list" style="flex:1;overflow-y:auto;padding:6px 10px;min-height:100px;"></div>
+  <div id="__lh_f_ft" style="display:flex;gap:6px;padding:8px 14px;border-top:1px solid #25262b;">
+    <button id="__lh_f_preview" style="background:#2b8a3e;color:#fff;border:none;border-radius:4px;padding:4px 14px;font-size:12px;cursor:pointer;">📖 预览</button>
+    <button id="__lh_f_download" style="background:#1971c2;color:#fff;border:none;border-radius:4px;padding:4px 14px;font-size:12px;cursor:pointer;">💾 下载</button>
+    <span id="__lh_f_status" style="flex:1;text-align:right;font-size:11px;color:#5c5f66;line-height:24px;"></span>
   </div>
 </div>`;
 
-  let createdByMe = false; // 当前实例是否是自己创建了浮动面板
+  let createdByMe = false;
+
+  // ---- 模块管理 ----
+
+  function addModule() {
+    const m = { id: nextModuleId++, title: '', content: '' };
+    modules.push(m);
+    renderModuleList();
+    setStatus(`模块 ${modules.length} 个`);
+  }
+
+  function removeModule(id) {
+    modules = modules.filter(m => m.id !== id);
+    renderModuleList();
+    setStatus(`模块 ${modules.length} 个`);
+  }
+
+  function moveModule(id, dir) {
+    const idx = modules.findIndex(m => m.id === id);
+    if (idx < 0) return;
+    const to = idx + dir;
+    if (to < 0 || to >= modules.length) return;
+    [modules[idx], modules[to]] = [modules[to], modules[idx]];
+    renderModuleList();
+  }
+
+  function setModuleField(id, field, val) {
+    const m = modules.find(x => x.id === id);
+    if (m) m[field] = val;
+  }
+
+  function getFullMarkdown() {
+    return modules.map((m, i) => {
+      const parts = [];
+      if (m.title) parts.push(`# ${m.title}`);
+      if (m.content) parts.push(m.content);
+      return parts.join('\n\n');
+    }).filter(Boolean).join('\n\n---\n\n');
+  }
+
+  // ---- 渲染模块列表 ----
+
+  function renderModuleList() {
+    const list = document.getElementById('__lh_f_list');
+    if (!list) return;
+    if (modules.length === 0) {
+      list.innerHTML = '<div style="text-align:center;padding:30px 0;color:#5c5f66;font-size:13px;">点击「➕ 新增模块」开始构建文档<br>每个模块包含标题和内容，均可从页面拾取</div>';
+      return;
+    }
+    list.innerHTML = modules.map((m, i) => `
+<div style="background:#25262b;border:1px solid #373a40;border-radius:6px;padding:8px 10px;margin-bottom:6px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+    <span style="color:#909296;font-size:11px;font-weight:600;">模块 ${i + 1}</span>
+    <div style="display:flex;gap:3px;">
+      <button data-mv="${m.id}" data-dir="-1" style="background:#373a40;color:#909296;border:none;border-radius:3px;padding:1px 6px;font-size:10px;cursor:pointer;" ${i === 0 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>↑</button>
+      <button data-mv="${m.id}" data-dir="1" style="background:#373a40;color:#909296;border:none;border-radius:3px;padding:1px 6px;font-size:10px;cursor:pointer;" ${i === modules.length - 1 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>↓</button>
+      <button data-rm="${m.id}" style="background:transparent;color:#e03131;border:1px solid #e03131;border-radius:3px;padding:1px 6px;font-size:10px;cursor:pointer;">✕</button>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px;">
+    <span style="font-size:11px;color:#909296;white-space:nowrap;">📝 标题</span>
+    <input id="__lh_mt_${m.id}" value="${escHtml(m.title)}" placeholder="模块标题（可拾取）" style="flex:1;background:#1a1b1e;border:1px solid #373a40;border-radius:3px;padding:3px 6px;font-size:11px;color:#c1c2c5;outline:none;">
+    <button data-pick="${m.id}:title" style="background:#f08c00;color:#fff;border:none;border-radius:3px;padding:2px 6px;font-size:10px;cursor:pointer;">🎯</button>
+  </div>
+  <div style="display:flex;align-items:flex-start;gap:4px;">
+    <span style="font-size:11px;color:#909296;white-space:nowrap;margin-top:3px;">📋 内容</span>
+    <textarea id="__lh_mc_${m.id}" placeholder="模块内容（可拾取）" rows="2" style="flex:1;background:#1a1b1e;border:1px solid #373a40;border-radius:3px;padding:3px 6px;font-size:11px;color:#c1c2c5;outline:none;resize:vertical;font-family:inherit;line-height:1.4;">${escHtml(m.content)}</textarea>
+    <button data-pick="${m.id}:content" style="background:#f08c00;color:#fff;border:none;border-radius:3px;padding:2px 6px;font-size:10px;cursor:pointer;margin-top:2px;">🎯</button>
+  </div>
+</div>`).join('');
+
+    // 绑定模块事件
+    list.querySelectorAll('[data-pick]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const [mid, field] = btn.dataset.pick.split(':');
+        startPick(parseInt(mid), field);
+      });
+    });
+    list.querySelectorAll('[data-rm]').forEach(btn => {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); removeModule(parseInt(btn.dataset.rm)); });
+    });
+    list.querySelectorAll('[data-mv]').forEach(btn => {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); moveModule(parseInt(btn.dataset.mv), parseInt(btn.dataset.dir)); });
+    });
+
+    // 输入框实时同步
+    list.querySelectorAll('input[id^="__lh_mt_"]').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const id = parseInt(inp.id.replace('__lh_mt_', ''));
+        setModuleField(id, 'title', inp.value);
+      });
+    });
+    list.querySelectorAll('textarea[id^="__lh_mc_"]').forEach(ta => {
+      ta.addEventListener('input', () => {
+        const id = parseInt(ta.id.replace('__lh_mc_', ''));
+        setModuleField(id, 'content', ta.value);
+      });
+    });
+  }
+
+  function escHtml(s) {
+    if (!s) return '';
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ---- 拾取到字段 ----
+
+  function startPick(mId, field) {
+    activePickField = { moduleId: mId, field };
+    pickMode = true;
+    setStatus(`🎯 点击页面元素拾取「${field === 'title' ? '标题' : '内容'}」`);
+    document.body.style.cursor = 'crosshair';
+    document.body.style.userSelect = 'none';
+    selectionLocked = false;
+
+    // 高亮拾取字段对应的输入框
+    const inp = document.getElementById(field === 'title' ? `__lh_mt_${mId}` : `__lh_mc_${mId}`);
+    if (inp) inp.style.borderColor = '#f08c00';
+  }
+
+  function finishPick(md) {
+    if (!activePickField) return;
+    const { moduleId, field } = activePickField;
+    const m = modules.find(x => x.id === moduleId);
+    if (m) {
+      m[field] = md;
+      // 更新输入框
+      const inp = document.getElementById(field === 'title' ? `__lh_mt_${moduleId}` : `__lh_mc_${moduleId}`);
+      if (inp) {
+        inp.value = md;
+        inp.style.borderColor = '#373a40';
+      }
+    }
+    activePickField = null;
+    pickMode = false;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    setStatus(`✅ 已填入「${field === 'title' ? '标题' : '内容'}」`);
+  }
+
+  function cancelPick() {
+    if (!activePickField) return;
+    const { moduleId, field } = activePickField;
+    const inp = document.getElementById(field === 'title' ? `__lh_mt_${moduleId}` : `__lh_mc_${moduleId}`);
+    if (inp) inp.style.borderColor = '#373a40';
+    activePickField = null;
+    pickMode = false;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    setStatus('');
+  }
+
+  // ---- 预览 ----
+
+  function showPreview() {
+    const md = getFullMarkdown();
+    if (!md) { setStatus('⚠️ 暂无内容'); return; }
+    // 在新窗口预览
+    const w = window.open('', '_blank', 'width=800,height=600');
+    if (!w) { setStatus('⚠️ 请允许弹出窗口'); return; }
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>文档预览</title>
+<style>body{background:#1a1b1e;color:#c1c2c5;font:14px -apple-system,sans-serif;padding:40px;max-width:800px;margin:auto;line-height:1.8}
+h1,h2,h3{color:#f08c00}table{border-collapse:collapse;width:100%;margin:10px 0}th,td{border:1px solid #373a40;padding:6px 10px;text-align:left}
+th{background:#25262b}code{background:#25262b;padding:2px 5px;border-radius:3px}hr{border:none;border-top:1px solid #373a40}pre{background:#25262b;padding:10px;border-radius:4px}</style></head><body>${renderMarkdown(md)}</body></html>`);
+    w.document.close();
+    setStatus('✅ 预览已打开');
+  }
+
+  // ---- 浮动面板创建 ----
 
   function createFloater() {
     if (document.getElementById('__lh_f')) {
-      console.log('[蓝湖] createFloater → 已存在，赋值后跳过');
       floater = document.getElementById('__lh_f');
       return;
     }
     createdByMe = true;
-    console.log('[蓝湖] createFloater → 创建浮动面板');
     const d = document.createElement('div');
     d.innerHTML = HTML;
     document.body.appendChild(d.firstElementChild);
     floater = document.getElementById('__lh_f');
-    console.log('[蓝湖] createFloater → 完成, floater:', !!floater);
 
-    // 按钮
+    // 关闭
     document.getElementById('__lh_f_x')?.addEventListener('click', (e) => { e.stopPropagation(); deactivate(); });
-    document.getElementById('__lh_f_cp')?.addEventListener('click', (e) => {
+
+    // 新增模块
+    document.getElementById('__lh_f_add')?.addEventListener('click', (e) => { e.stopPropagation(); addModule(); });
+
+    // 预览
+    document.getElementById('__lh_f_preview')?.addEventListener('click', (e) => { e.stopPropagation(); showPreview(); });
+
+    // 下载
+    document.getElementById('__lh_f_download')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      const b = document.getElementById('__lh_f_b');
-      if (b && b.textContent) navigator.clipboard.writeText(b.textContent).then(() => setStatus('✅ 已复制'));
-    });
-    document.getElementById('__lh_f_dl')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const b = document.getElementById('__lh_f_b');
-      if (!b || !b.textContent) return;
-      const blob = new Blob([b.textContent], { type: 'text/markdown' });
+      const md = getFullMarkdown();
+      if (!md) { setStatus('⚠️ 暂无内容'); return; }
+      const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `拾取_${Date.now()}.md`;
+      a.download = `文档_${new Date().toISOString().slice(0, 10)}.md`;
       a.click();
-    });
-
-    // 追加模式切换
-    const apBtn = document.getElementById('__lh_f_ap');
-    if (apBtn) {
-      apBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        appendMode = !appendMode;
-        apBtn.style.background = appendMode ? '#f08c00' : '#373a40';
-        apBtn.style.color = appendMode ? '#fff' : '#909296';
-        apBtn.textContent = appendMode ? '📎 追加中' : '📎 追加';
-        setStatus(appendMode ? '📎 追加模式 — 每次点击累加内容' : '追加模式已关闭');
-      });
-    }
-
-    // 预览切换
-    const pvBtn = document.getElementById('__lh_f_pv');
-    if (pvBtn) {
-      pvBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        showRendered = !showRendered;
-        pvBtn.style.background = showRendered ? '#f08c00' : '#373a40';
-        pvBtn.style.color = showRendered ? '#fff' : '#909296';
-        const b = document.getElementById('__lh_f_b');
-        const s = document.getElementById('__lh_f_s');
-        if (b) refreshDisplay(b, s, '');
-      });
-    }
-
-    // 截图模式按钮
-    document.querySelectorAll('#__lh_f_sc_btns button').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const mode = btn.getAttribute('data-sc');
-        // 点过的按钮高亮
-        document.querySelectorAll('#__lh_f_sc_btns button').forEach(b => {
-          b.style.background = b === btn ? '#f08c00' : '#373a40';
-          b.style.color = b === btn ? '#fff' : '#909296';
-        });
-        takeScreenshot(mode);
-      });
+      setStatus('✅ 已下载');
     });
 
     // 拖拽
@@ -247,42 +370,16 @@
       });
     }
 
-    // 容器导航：父级 / 子级（已移除）
+    renderModuleList();
   }
 
   function showFloater() { if (floater) floater.style.display = 'flex'; }
   function hideFloater() { if (floater) floater.style.display = 'none'; }
   function removeFloater() { if (floater) { floater.remove(); floater = null; } }
 
-  function setContent(md, type) {
-    const b = document.getElementById('__lh_f_b');
-    const s = document.getElementById('__lh_f_s');
-    if (!b) return;
-    if (appendMode && lastRawMd) {
-      lastRawMd = lastRawMd + '\n\n---\n\n' + md;
-    } else {
-      lastRawMd = md;
-    }
-    refreshDisplay(b, s, type);
-    showFloater();
-  }
-
-  function refreshDisplay(b, s, type) {
-    if (showRendered) {
-      b.innerHTML = renderMarkdown(lastRawMd);
-      b.style.whiteSpace = 'normal';
-    } else {
-      b.textContent = lastRawMd;
-      b.style.whiteSpace = 'pre-wrap';
-    }
-    const mode = appendMode ? ' · 追加' : '';
-    const viewTag = showRendered ? '👁 预览' : '📝 源码';
-    if (s) s.textContent = (type ? `✅ 已提取 (${type})` : viewTag) + mode + (type ? ` · [${viewTag}]` : '');
-  }
-
   function setStatus(msg) {
-    const s = document.getElementById('__lh_f_s');
-    if (s) s.textContent = msg;
+    const s = document.getElementById('__lh_f_status');
+    if (s) s.textContent = msg || '';
   }
 
   // ---- 橡皮筋选框 ----
@@ -684,7 +781,7 @@
     const area = Math.abs((selEndX - selStartX) * (selEndY - selStartY));
     removeRubber();
 
-    // ---- 点击元素：构建路径 + 智能定位起始容器 ----
+    // ---- 点击元素 ----
     if (dragDist < 15) {
       const el = document.elementFromPoint(selEndX, selEndY);
       if (!el || el.id?.startsWith('__lh_')) {
@@ -693,7 +790,21 @@
         return;
       }
 
-      // 构建完整 DOM 路径
+      // 拾取模式：提取元素填入当前字段
+      if (pickMode && activePickField) {
+        const container = findContainer(el);
+        const target = container.el || el;
+        const result = extractFromEl(target);
+        if (result.markdown) {
+          finishPick(result.markdown);
+          hideHighlight();
+        } else {
+          setStatus('⚠️ 所选区域无内容');
+        }
+        return;
+      }
+
+      // 构建完整 DOM 路径（用于高亮定位）
       navPath = buildPath(el);
       console.log('[蓝湖提取器] navPath:', navPath.map(e => e.tagName+'.'+(e.className||'')).join(' > '), 'length:', navPath.length);
       if (navPath.length < 2) {
@@ -925,6 +1036,7 @@
       case 'diagnose-me': sendResponse({status:'ok', data:getDiagnostics()}); break;
       case 'start-picker': activate(); sendResponse({status:'ok'}); break;
       case 'stop-picker': deactivate(); sendResponse({status:'ok'}); break;
+      case 'open-builder': activate(); sendResponse({status:'ok'}); break;
     }
     return true;
   });
