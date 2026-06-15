@@ -154,16 +154,37 @@
 
   // ---- 模块管理 ----
 
+  const STORAGE_KEY = 'lh_builder_modules';
+
+  function saveModules() {
+    try { chrome.storage.local.set({ [STORAGE_KEY]: modules }); } catch {}
+  }
+
+  function loadModules() {
+    try {
+      chrome.storage.local.get(STORAGE_KEY, (data) => {
+        if (data && data[STORAGE_KEY] && data[STORAGE_KEY].length > 0) {
+          modules = data[STORAGE_KEY];
+          nextModuleId = (modules.reduce((max, m) => Math.max(max, m.id), 0) || 0) + 1;
+          renderModuleList();
+          setStatus(`已加载 ${modules.length} 个模块`);
+        }
+      });
+    } catch {}
+  }
+
   function addModule() {
     const m = { id: nextModuleId++, title: '', contents: [] };
     modules.push(m);
     renderModuleList();
+    saveModules();
     setStatus(`模块 ${modules.length} 个`);
   }
 
   function removeModule(id) {
     modules = modules.filter(m => m.id !== id);
     renderModuleList();
+    saveModules();
     setStatus(`模块 ${modules.length} 个`);
   }
 
@@ -174,22 +195,24 @@
     if (to < 0 || to >= modules.length) return;
     [modules[idx], modules[to]] = [modules[to], modules[idx]];
     renderModuleList();
+    saveModules();
   }
 
   function setModuleField(id, field, val) {
     const m = modules.find(x => x.id === id);
     if (m) m[field] = val;
+    saveModules();
   }
 
   // ---- 内容条目管理 ----
   function addContentEntry(moduleId) {
     const m = modules.find(x => x.id === moduleId);
-    if (m) { m.contents.push(''); renderModuleList(); }
+    if (m) { m.contents.push(''); renderModuleList(); saveModules(); }
   }
 
   function removeContentEntry(moduleId, entryIdx) {
     const m = modules.find(x => x.id === moduleId);
-    if (m) { m.contents.splice(entryIdx, 1); renderModuleList(); }
+    if (m) { m.contents.splice(entryIdx, 1); renderModuleList(); saveModules(); }
   }
 
   function moveContentEntry(moduleId, entryIdx, dir) {
@@ -199,11 +222,13 @@
     if (to < 0 || to >= m.contents.length) return;
     [m.contents[entryIdx], m.contents[to]] = [m.contents[to], m.contents[entryIdx]];
     renderModuleList();
+    saveModules();
   }
 
   function setContentEntry(moduleId, entryIdx, val) {
     const m = modules.find(x => x.id === moduleId);
     if (m && m.contents[entryIdx] !== undefined) m.contents[entryIdx] = val;
+    saveModules();
   }
 
   function getFullMarkdown() {
@@ -485,6 +510,7 @@ strong{color:#e0e0e0}
     }
 
     renderModuleList();
+    loadModules();
   }
 
   function showFloater() { if (floater) floater.style.display = 'flex'; }
@@ -602,14 +628,30 @@ strong{color:#e0e0e0}
     const lines = md.split('\n');
     const out = [];
     let inTable = false;
+    let inCode = false;
+    let codeBuf = [];
 
     for (let i = 0; i < lines.length; i++) {
       let line = lines[i];
       line = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-      const isTable = /^\|.+\|$/.test(line.trim());
-      const isSep = /^\|[\s:-]+\|$/.test(line.trim());
+      // 代码块
+      if (/^```/.test(line.trim())) {
+        if (inCode) {
+          out.push(`<pre><code>${escHtml(codeBuf.join('\n'))}</code></pre>`);
+          codeBuf = [];
+          inCode = false;
+        } else {
+          if (inTable) { out.push('</table>'); inTable = false; }
+          inCode = true;
+        }
+        continue;
+      }
+      if (inCode) { codeBuf.push(line); continue; }
 
+      // 表格
+      const isTable = /^\|.+/.test(line.trim());
+      const isSep = /^\|[\s:-]+\|/.test(line.trim());
       if (isTable || isSep) {
         if (!inTable) {
           out.push('<table style="border-collapse:collapse;width:100%;font-size:12px;margin:6px 0;border:1px solid #373a40;">');
@@ -621,27 +663,63 @@ strong{color:#e0e0e0}
         const head = isHeader ? 'background:#25262b;font-weight:600;color:#e0e0e0;' : '';
         const cells = line.split('|').slice(1, -1).map(c => c.trim());
         out.push('<tr>');
-        cells.forEach(c => out.push(`<${tag} style="border:1px solid #373a40;padding:4px 8px;text-align:left;${head}">${c.trim()}</${tag}>`));
+        cells.forEach(c => out.push(`<${tag} style="border:1px solid #373a40;padding:4px 8px;text-align:left;${head}">${c}</${tag}>`));
         out.push('</tr>');
         continue;
       }
       if (inTable) { out.push('</table>'); inTable = false; }
 
+      // 引用块
+      if (/^>\s?/.test(line)) {
+        out.push(`<blockquote>${line.replace(/^>\s?/, '')}</blockquote>`);
+        continue;
+      }
+
+      // 标题
       if (/^#{1,6}\s/.test(line)) {
         const lv = line.match(/^(#+)/)[1].length;
         out.push(`<h${lv} style="margin:8px 0 4px;color:#c1c2c5;font-weight:600;">${line.replace(/^#+\s*/, '')}</h${lv}>`);
-      } else if (/^---+$/.test(line.trim())) {
-        out.push('<hr style="border:none;border-top:1px solid #373a40;margin:8px 0;">');
-      } else {
-        line = line.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#e0e0e0;">$1</strong>')
-                   .replace(/\*(.+?)\*/g, '<em>$1</em>')
-                   .replace(/`(.+?)`/g, '<code style="background:#25262b;padding:1px 4px;border-radius:2px;font-size:11px;">$1</code>')
-                   .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" style="color:#f08c00;">$1</a>');
-        out.push(`<div style="line-height:1.6;${line ? '' : 'height:0.5em;'}">${line || '&nbsp;'}</div>`);
+        continue;
       }
+
+      // 分隔线
+      if (/^---+$/.test(line.trim())) {
+        out.push('<hr style="border:none;border-top:1px solid #373a40;margin:8px 0;">');
+        continue;
+      }
+
+      // 无序列表
+      if (/^[\s]*[-*+]\s/.test(line)) {
+        const depth = (line.match(/^(\s*)/)[1].length / 2) || 0;
+        const indent = '  '.repeat(depth);
+        const text = line.replace(/^[\s]*[-*+]\s/, '');
+        out.push(`${indent}<li>${renderInline(text)}</li>`);
+        continue;
+      }
+
+      // 有序列表
+      if (/^[\s]*\d+\.\s/.test(line)) {
+        const text = line.replace(/^[\s]*\d+\.\s/, '');
+        out.push(`<li>${renderInline(text)}</li>`);
+        continue;
+      }
+
+      // 普通段落
+      out.push(`<div style="line-height:1.6;${line ? '' : 'height:0.5em;'}">${line ? renderInline(line) : '&nbsp;'}</div>`);
     }
+
     if (inTable) out.push('</table>');
+    if (inCode) out.push(`<pre><code>${escHtml(codeBuf.join('\n'))}</code></pre>`);
     return out.join('\n');
+  }
+
+  function renderInline(text) {
+    return text
+      .replace(/\*\*(.+?)\*\*/g, '<strong style="color:#e0e0e0;">$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/`(.+?)`/g, '<code style="background:#25262b;padding:1px 4px;border-radius:2px;font-size:11px;">$1</code>')
+      .replace(/!\[(.+?)\]\((.+?)\)/g, '<img src="$2" alt="$1" style="max-width:100%;border-radius:4px;">')
+      .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" style="color:#f08c00;">$1</a>');
   }
 
   let showRendered = false;
