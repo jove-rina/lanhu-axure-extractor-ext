@@ -132,11 +132,12 @@
         pickerActive = true;
         DOM.btnPicker.textContent = '⏹ 退出拾取';
         DOM.btnPicker.classList.add('active');
-        setStatus('🎯 拾取模式已激活 — 点击元素或拖拽框选', 'busy');
+        setStatus('🎯 拾取模式已激活 — 悬停预览 · 点击定位 · 同处再点升级', 'busy');
         DOM.previewBody.innerHTML = `<p class="hint" style="color:#2b8a3e;font-weight:600;">
           🎯 拾取模式已激活<br><br>
-          <b>点击</b>元素 → 直接提取该元素<br>
-          <b>拖拽框选</b> → 提取区域内所有内容<br><br>
+          <b>🖱 悬停预览</b> → 橙色高亮提示即将选中的范围<br>
+          <b>👆 点击</b> → 智能定位容器，一步到位<br>
+          <b>🔼 同处再点</b> → 升级到上一级容器<br><br>
           结果在右下角浮动面板显示。<br>
           按 <kbd style="background:#373a40;padding:2px 8px;border-radius:3px;">ESC</kbd> 退出。
         </p>`;

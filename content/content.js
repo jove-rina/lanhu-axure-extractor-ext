@@ -220,12 +220,95 @@
     rubber.style.height = Math.abs(y2 - y1) + 'px';
   }
 
-  // ---- 事件 ----
+  function removeRubber() { if (rubber) { rubber.remove(); rubber = null; } }
 
+  // ==================== 智能容器定位 ====================
+
+  function findContainer(el) {
+    let current = el;
+    for (let depth = 0; current && depth < 20; depth++) {
+      if (current === document.body || current === document.documentElement) break;
+      if (current.classList?.contains('ax_default')) return { el: current, depth };
+      if (current.classList?.contains('panel_state') || current.classList?.contains('panel_state_content')) return { el: current, depth };
+      if (/^u\d+/.test(current.id || '') && current.children?.length >= 3) return { el: current, depth };
+      const axChildren = current.querySelectorAll(':scope > .ax_default');
+      if (axChildren.length >= 3) return { el: current, depth };
+      current = current.parentElement;
+    }
+    return { el: el.parentElement || el, depth: -1 };
+  }
+
+  function getBreadcrumb(el) {
+    const parts = [];
+    let current = el;
+    for (let i = 0; current && i < 6; i++) {
+      const tag = (current.tagName || '').toLowerCase();
+      const id = current.id ? `#${current.id}` : '';
+      const cls = current.className && typeof current.className === 'string'
+        ? '.' + current.className.split(/\s+/).filter(Boolean).slice(0, 1).join('.')
+        : '';
+      parts.unshift(`${tag}${id}${cls}`);
+      if (current === document.body || current === document.documentElement) break;
+      current = current.parentElement;
+    }
+    return parts.join(' › ');
+  }
+
+  function extractFromEl(el) {
+    for (const sel of ['.ax_default.table_cell', '.ax_default._形状1']) {
+      const cells = el.querySelectorAll(sel);
+      if (cells.length >= 4) {
+        const table = buildTable(cells);
+        if (table) return { type: 'table', markdown: mdTable(table) };
+      }
+    }
+    const text = el.innerText ? el.innerText.trim() : '';
+    if (text) return { type: 'text', markdown: text };
+    return { type: 'empty', markdown: '' };
+  }
+
+  // ---- 悬停预览 ----
+  let hoverHighlight = null;
+
+  function createHoverHighlight() {
+    if (document.getElementById('__lh_hh')) return;
+    const h = document.createElement('div');
+    h.id = '__lh_hh';
+    Object.assign(h.style, {
+      position: 'fixed', zIndex: '2147483646', pointerEvents: 'none',
+      border: '1.5px solid #f08c00', background: 'rgba(240,140,0,0.08)',
+      borderRadius: '3px', display: 'none',
+    });
+    document.body.appendChild(h);
+    hoverHighlight = h;
+  }
+
+  function removeHoverHighlight() {
+    if (hoverHighlight) { hoverHighlight.remove(); hoverHighlight = null; }
+  }
+
+  function highlightEl(el) {
+    if (!hoverHighlight || !el) return;
+    const r = el.getBoundingClientRect();
+    hoverHighlight.style.display = 'block';
+    hoverHighlight.style.left = r.left + 'px';
+    hoverHighlight.style.top = r.top + 'px';
+    hoverHighlight.style.width = r.width + 'px';
+    hoverHighlight.style.height = r.height + 'px';
+  }
+
+  function hideHighlight() {
+    if (hoverHighlight) hoverHighlight.style.display = 'none';
+  }
+
+  // ---- 点击升级 (Click Escalation) ----
+  let escalation = { target: null, time: 0, current: null };
+
+  // ---- 事件 ----
   function onMouseDown(e) {
     if (e.button !== 0) return;
-    // 点在浮动面板上则忽略
     if (e.target.closest && e.target.closest('#__lh_f')) return;
+    hideHighlight();
     e.preventDefault();
     isDragging = true;
     selStartX = selEndX = e.clientX;
@@ -236,10 +319,21 @@
   }
 
   function onMouseMove(e) {
-    if (!isDragging) return;
-    selEndX = e.clientX;
-    selEndY = e.clientY;
-    updateRubber(selStartX, selStartY, selEndX, selEndY);
+    if (isDragging) {
+      selEndX = e.clientX;
+      selEndY = e.clientY;
+      updateRubber(selStartX, selStartY, selEndX, selEndY);
+      return;
+    }
+    if (!active) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (!el || el.id?.startsWith('__lh_')) { hideHighlight(); return; }
+    const container = findContainer(el);
+    if (container.el && container.el !== document.body) {
+      highlightEl(container.el);
+    } else {
+      hideHighlight();
+    }
   }
 
   function onMouseUp(e) {
@@ -252,43 +346,54 @@
     const area = Math.abs((selEndX - selStartX) * (selEndY - selStartY));
     removeRubber();
 
-    // ---- 定点点击（拖动距离 < 15px） ----
+    // ---- 智能定位点击（拖动距离 < 15px） ----
     if (dragDist < 15) {
       const el = document.elementFromPoint(selEndX, selEndY);
       if (!el || el.id?.startsWith('__lh_')) {
+        hideHighlight();
         setStatus('⚠️ 未选中有效元素');
         return;
       }
 
-      let md = '', type = 'text';
+      const now = Date.now();
+      const isRecent = (now - escalation.time) < 2500;
 
-      // 尝试从元素或其父容器提取表格
-      const candidates = [el, el.closest('.ax_default'), el.parentElement].filter(Boolean);
-      for (const scope of candidates) {
-        for (const sel of ['.ax_default.table_cell', '.ax_default._形状1']) {
-          const cells = scope.querySelectorAll(sel);
-          if (cells.length >= 4) {
-            const table = buildTable(cells);
-            if (table) { md = mdTable(table); type = 'table'; break; }
-          }
+      // 点击升级：同一位置附近再点 → 往上移一级
+      if (isRecent && escalation.current && escalation.current !== document.body) {
+        const parent = escalation.current.parentElement;
+        if (parent && parent !== document.body && parent !== document.documentElement) {
+          escalation.current = parent;
+          escalation.time = now;
+          const result = extractFromEl(parent);
+          const bc = getBreadcrumb(parent);
+          setStatus(`🔼 升级至容器 (${bc})`);
+          if (result.markdown) {
+            if (FRAME_CTX !== 'top') {
+              try { window.top.postMessage({ type: '__lh_picker_result', markdown: result.markdown, sourceType: result.type }, '*'); } catch {}
+            } else { setContent(result.markdown, result.type); }
+          } else { setStatus('⚠️ 容器无内容'); }
+          return;
         }
-        if (md) break;
+        setStatus('⚠️ 已到最顶层容器');
+        return;
       }
 
-      if (!md) {
-        md = axureText(el) || el.innerText.trim();
-        if (!md) { setStatus('⚠️ 该元素无内容'); return; }
-        type = 'text';
-      }
+      // 首次点击：智能定位容器
+      const { el: container } = findContainer(el);
+      escalation.target = el;
+      escalation.current = container;
+      escalation.time = now;
 
-      // 显示/发送结果
-      if (FRAME_CTX !== 'top') {
-        try {
-          window.top.postMessage({ type: '__lh_picker_result', markdown: md, sourceType: type }, '*');
-          setStatus('✅ 已发送到顶层');
-        } catch { setStatus('⚠️ 发送失败'); }
+      const result = extractFromEl(container);
+      const bc = getBreadcrumb(container);
+      setStatus(`🎯 ${container === el ? '元素' : `容器 (${bc})`} — 再点同位置升级`);
+
+      if (result.markdown) {
+        if (FRAME_CTX !== 'top') {
+          try { window.top.postMessage({ type: '__lh_picker_result', markdown: result.markdown, sourceType: result.type }, '*'); } catch {}
+        } else { setContent(result.markdown, result.type); }
       } else {
-        setContent(md, type);
+        setStatus('⚠️ 所选容器无内容');
       }
       return;
     }
@@ -342,6 +447,7 @@
     }
 
     createRubber();
+    createHoverHighlight();
     document.addEventListener('mousedown', onMouseDown, true);
     document.addEventListener('mousemove', onMouseMove, true);
     document.addEventListener('mouseup', onMouseUp, true);
@@ -365,6 +471,7 @@
     document.body.style.userSelect = '';
 
     removeRubber();
+    removeHoverHighlight();
     removeFloater();
     isDragging = false;
 
