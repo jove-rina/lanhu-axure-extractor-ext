@@ -279,29 +279,41 @@
       list.innerHTML = '<div style="text-align:center;padding:30px 0;color:#5c5f66;font-size:13px;">点击「➕ 新增模块」开始构建文档</div>';
       return;
     }
-    list.innerHTML = modules.map((m, mi) => `
-<div style="background:#25262b;border:1px solid #373a40;border-radius:8px;margin-bottom:10px;overflow:hidden;">
-  <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#2c2e33;border-bottom:1px solid #373a40;">
-    <span style="color:#f08c00;font-size:13px;font-weight:600;">📄 ${escHtml(m.title) || `模块 ${mi + 1}`}</span>
-    <div style="display:flex;gap:4px;">
-      <button data-preview="${m.id}" title="预览本模块" style="background:#2b8a3e;color:#fff;border:none;border-radius:4px;padding:2px 10px;font-size:11px;cursor:pointer;">📖 预览</button>
-      <button data-mv="${m.id}" data-dir="-1" title="上移模块" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;" ${mi === 0 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>↑</button>
-      <button data-mv="${m.id}" data-dir="1" title="下移模块" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;" ${mi === modules.length - 1 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>↓</button>
-      <button data-rm="${m.id}" title="删除模块" style="background:transparent;color:#e03131;border:1px solid #e03131;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">✕</button>
+
+    if (expandedModuleId !== null && !modules.find(m => m.id === expandedModuleId)) {
+      expandedModuleId = modules[modules.length - 1]?.id || null;
+    }
+
+    list.innerHTML = modules.map((m, mi) => {
+      const isExpanded = expandedModuleId === m.id;
+      const isSelected = selectedModuleIds.has(m.id);
+      return `
+<div data-module-id="${m.id}" draggable="true"
+  style="background:#25262b;border:1px solid ${isExpanded ? '#f08c00' : '#373a40'};border-radius:8px;margin-bottom:8px;overflow:hidden;transition:border-color 0.2s, box-shadow 0.2s;${isExpanded ? 'box-shadow:0 0 0 1px rgba(240,140,0,0.2);' : ''}">
+  <div class="lh-module-header" style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#2c2e33;border-bottom:1px solid ${isExpanded ? '#373a40' : '#25262b'};cursor:pointer;user-select:none;transition:background 0.15s;">
+    <span style="font-size:10px;color:#909296;flex-shrink:0;transition:transform 0.2s;${isExpanded ? 'transform:rotate(90deg);' : ''}">▶</span>
+    <input type="checkbox" class="lh-module-cb" data-mid="${m.id}" ${isSelected ? 'checked' : ''}
+      style="flex-shrink:0;accent-color:#f08c00;width:14px;height:14px;cursor:pointer;">
+    <span style="flex:1;color:#f08c00;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">📄 ${escHtml(m.title) || `模块 ${mi + 1}`}</span>
+    <div style="display:flex;gap:4px;flex-shrink:0;">
+      <button data-preview="${m.id}" style="background:#2b8a3e;color:#fff;border:none;border-radius:4px;padding:2px 10px;font-size:11px;cursor:pointer;">📖 预览</button>
+      <button data-mv="${m.id}" data-dir="-1" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;" ${mi === 0 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>↑</button>
+      <button data-mv="${m.id}" data-dir="1" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;" ${mi === modules.length - 1 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>↓</button>
+      <button data-rm="${m.id}" style="background:transparent;color:#e03131;border:1px solid #e03131;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;">✕</button>
     </div>
   </div>
-  <div style="padding:10px 14px 8px;">
+  <div class="lh-module-body" style="${isExpanded ? '' : 'display:none;'}padding:10px 14px 8px;animation:${isExpanded ? 'lhFadeIn 0.2s ease' : 'none'};">
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;">
       <span style="font-size:12px;color:#909296;font-weight:500;white-space:nowrap;">📝 标题</span>
       <div style="flex:1;display:flex;align-items:center;background:#1a1b1e;border:1px solid #373a40;border-radius:6px;padding:2px 4px 2px 10px;">
-        <input id="__lh_mt_${m.id}" value="${escHtml(m.title)}" placeholder="点击 🎯 从页面拾取" style="flex:1;background:transparent;border:none;padding:6px 0;font-size:13px;color:#e0e0e0;outline:none;">
-        <button data-pick="${m.id}:title" title="从页面拾取标题" style="background:#f08c00;color:#fff;border:none;border-radius:4px;padding:5px 10px;font-size:11px;cursor:pointer;white-space:nowrap;">🎯 拾取</button>
+        <input id="__lh_mt_${m.id}" draggable="false" value="${escHtml(m.title)}" placeholder="点击 🎯 从页面拾取" style="flex:1;background:transparent;border:none;padding:6px 0;font-size:13px;color:#e0e0e0;outline:none;">
+        <button data-pick="${m.id}:title" style="background:#f08c00;color:#fff;border:none;border-radius:4px;padding:5px 10px;font-size:11px;cursor:pointer;white-space:nowrap;">🎯 拾取</button>
       </div>
     </div>
     <div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
         <span style="font-size:12px;color:#909296;font-weight:500;">📋 内容条目 <span style="color:#5c5f66;font-weight:400;">(${m.contents.length})</span></span>
-        <button data-addc="${m.id}" title="新增空白条目" style="background:#2b8a3e;color:#fff;border:none;border-radius:4px;padding:3px 12px;font-size:11px;cursor:pointer;">➕ 新增条目</button>
+        <button data-addc="${m.id}" style="background:#2b8a3e;color:#fff;border:none;border-radius:4px;padding:3px 12px;font-size:11px;cursor:pointer;">➕ 新增条目</button>
       </div>
       ${m.contents.length === 0 ? '<div style="font-size:12px;color:#5c5f66;padding:12px 0;text-align:center;background:#1a1b1e;border-radius:6px;">暂无内容，点击 🎯 拾取页面元素</div>' :
         m.contents.map((c, ci) => {
@@ -311,27 +323,101 @@
       <div style="display:flex;align-items:flex-start;gap:4px;padding:6px 8px;">
         <div style="flex:1;min-width:0;">
           ${preview ? `<div style="font-size:11px;color:#909296;padding:4px 6px;background:#25262b;border-radius:4px;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(c.slice(0,200))}">${escHtml(preview)}</div>` : ''}
-          <textarea id="__lh_mc_${m.id}_${ci}" rows="1" placeholder="内容 ${ci+1}" style="width:100%;background:transparent;border:none;padding:4px 6px;font-size:12px;color:#c1c2c5;outline:none;resize:vertical;font-family:inherit;line-height:1.5;min-height:28px;">${escHtml(c)}</textarea>
+          <textarea id="__lh_mc_${m.id}_${ci}" draggable="false" rows="1" placeholder="内容 ${ci+1}" style="width:100%;background:transparent;border:none;padding:4px 6px;font-size:12px;color:#c1c2c5;outline:none;resize:vertical;font-family:inherit;line-height:1.5;min-height:28px;">${escHtml(c)}</textarea>
         </div>
         <div style="display:flex;gap:2px;flex-shrink:0;">
-          <button data-pick="${m.id}:content:${ci}" title="拾取覆盖本条" style="background:#f08c00;color:#fff;border:none;border-radius:4px;padding:4px 7px;font-size:11px;cursor:pointer;">🎯</button>
-          <button data-mvc="${m.id}:${ci}:-1" title="上移" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:4px 6px;font-size:11px;cursor:pointer;" ${ci === 0 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>↑</button>
-          <button data-mvc="${m.id}:${ci}:1" title="下移" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:4px 6px;font-size:11px;cursor:pointer;" ${ci === m.contents.length - 1 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>↓</button>
-          <button data-rmc="${m.id}:${ci}" title="删除" style="background:transparent;color:#e03131;border:1px solid #e03131;border-radius:4px;padding:4px 6px;font-size:11px;cursor:pointer;">✕</button>
+          <button data-pick="${m.id}:content:${ci}" style="background:#f08c00;color:#fff;border:none;border-radius:4px;padding:4px 7px;font-size:11px;cursor:pointer;">🎯</button>
+          <button data-mvc="${m.id}:${ci}:-1" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:4px 6px;font-size:11px;cursor:pointer;" ${ci === 0 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>↑</button>
+          <button data-mvc="${m.id}:${ci}:1" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:4px 6px;font-size:11px;cursor:pointer;" ${ci === m.contents.length - 1 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>↓</button>
+          <button data-rmc="${m.id}:${ci}" style="background:transparent;color:#e03131;border:1px solid #e03131;border-radius:4px;padding:4px 6px;font-size:11px;cursor:pointer;">✕</button>
         </div>
       </div>
     </div>`}).join('')}
     </div>
   </div>
-</div>`).join('');
+  <div class="lh-drop-indicator" style="height:2px;background:#f08c00;display:none;transition:all 0.15s;"></div>
+</div>`}).join('');
 
-    // 绑定事件
+    // ---- 展开/收起 ----
+    list.querySelectorAll('.lh-module-header').forEach(hd => {
+      hd.addEventListener('click', (e) => {
+        if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') return;
+        const card = hd.closest('[data-module-id]');
+        if (!card) return;
+        const mid = parseInt(card.dataset.moduleId);
+        expandedModuleId = expandedModuleId === mid ? null : mid;
+        renderModuleList();
+      });
+    });
+
+    // ---- 复选框 ----
+    list.querySelectorAll('.lh-module-cb').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const mid = parseInt(cb.dataset.mid);
+        if (cb.checked) selectedModuleIds.add(mid);
+        else selectedModuleIds.delete(mid);
+        const selBtn = document.getElementById('__lh_f_selall');
+        if (selBtn) selBtn.textContent = selectedModuleIds.size === modules.length ? '🔓 取消全选' : '✅ 全选';
+        const delBtn = document.getElementById('__lh_f_del_sel');
+        if (delBtn) delBtn.style.opacity = selectedModuleIds.size > 0 ? '1' : '0.4';
+      });
+    });
+
+    // ---- 拖拽 ----
+    list.querySelectorAll('[data-module-id]').forEach(card => {
+      card.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', card.dataset.moduleId);
+        e.dataTransfer.effectAllowed = 'move';
+        card.style.opacity = '0.4';
+        expandedModuleId = null;
+        renderModuleList();
+      });
+      card.addEventListener('dragend', (e) => {
+        card.style.opacity = '';
+        list.querySelectorAll('.lh-drop-indicator').forEach(ind => ind.style.display = 'none');
+      });
+      card.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const mid = parseInt(card.dataset.moduleId);
+        if (mid === parseInt(e.dataTransfer.types.length ? e.dataTransfer.getData('text/plain') : -1)) return;
+        list.querySelectorAll('.lh-drop-indicator').forEach(ind => ind.style.display = 'none');
+        const indicator = card.querySelector('.lh-drop-indicator');
+        if (indicator) indicator.style.display = 'block';
+      });
+      card.addEventListener('dragleave', (e) => {
+        if (!card.contains(e.relatedTarget)) {
+          const indicator = card.querySelector('.lh-drop-indicator');
+          if (indicator) indicator.style.display = 'none';
+        }
+      });
+      card.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const fromId = parseInt(e.dataTransfer.getData('text/plain'));
+        const toId = parseInt(card.dataset.moduleId);
+        if (isNaN(fromId) || fromId === toId) return;
+        const fromIdx = modules.findIndex(m => m.id === fromId);
+        const toIdx = modules.findIndex(m => m.id === toId);
+        if (fromIdx < 0 || toIdx < 0) return;
+        const [moved] = modules.splice(fromIdx, 1);
+        const insertAt = fromIdx < toIdx ? toIdx - 1 : toIdx;
+        modules.splice(insertAt < 0 ? 0 : insertAt, 0, moved);
+        list.querySelectorAll('.lh-drop-indicator').forEach(ind => ind.style.display = 'none');
+        list.querySelectorAll('[data-module-id]').forEach(c => c.style.opacity = '');
+        renderModuleList();
+        saveModules();
+      });
+    });
+
+    // ---- 按钮事件 ----
     list.querySelectorAll('[data-pick]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const parts = btn.dataset.pick.split(':');
         const mid = parseInt(parts[0]), field = parts[1];
         const entryIdx = parts[2] !== undefined ? parseInt(parts[2]) : undefined;
+        expandedModuleId = mid;
+        renderModuleList();
         startPick(mid, field, entryIdx);
       });
     });
@@ -365,7 +451,6 @@
       });
     });
 
-    // 输入框实时同步
     list.querySelectorAll('input[id^="__lh_mt_"]').forEach(inp => {
       inp.addEventListener('input', () => { setModuleField(parseInt(inp.id.replace('__lh_mt_', '')), 'title', inp.value); });
     });
