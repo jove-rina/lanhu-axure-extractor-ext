@@ -329,37 +329,25 @@
     if (!m) return;
 
     if (field === 'title') {
-      // 标题：替换
+      // 标题：覆盖
       m.title = md;
       const inp = document.getElementById(`__lh_mt_${moduleId}`);
       if (inp) { inp.value = md; }
     } else {
-      // 内容：追加到指定条目或新建条目
+      // 内容：覆盖指定条目，若不存在则新建
       if (entryIdx !== undefined && m.contents[entryIdx] !== undefined) {
-        // 替换指定条目
-        const separator = m.contents[entryIdx] ? '\n\n---\n\n' : '';
-        m.contents[entryIdx] = m.contents[entryIdx] + separator + md;
+        m.contents[entryIdx] = md;
+        const ta = document.getElementById(`__lh_mc_${moduleId}_${entryIdx}`);
+        if (ta) ta.value = md;
       } else {
-        // 追加新条目
         m.contents.push(md);
-      }
-      // 更新输入框
-      const entries = m.contents.length;
-      const targetId = entryIdx !== undefined ? `__lh_mc_${moduleId}_${entryIdx}` : null;
-      if (targetId) {
-        const ta = document.getElementById(targetId);
-        if (ta) ta.value = m.contents[entryIdx];
-      }
-      // 新增的条目不刷新列表，直接追加 textarea（避免闪烁）
-      if (entryIdx === undefined) {
         renderModuleList();
       }
     }
 
-    // 持续拾取：不清除 mode，更新状态提示
-    setStatus(`✅ 已拾取 — 继续点击页面${field === 'title' ? '替换标题' : '追加内容'}，或按 ESC 结束`);
+    // 持续拾取模式，不退出
+    setStatus(`✅ 已拾取 — 继续拾取将覆盖当前${field === 'title' ? '标题' : '条目'}`);
     hideHighlight();
-    // 保持光标为十字
     document.body.style.cursor = 'crosshair';
     document.body.style.userSelect = 'none';
   }
@@ -599,7 +587,7 @@ strong{color:#e0e0e0}
         const isHeader = i + 1 < lines.length && /^\|[\s:-]+\|$/.test(lines[i + 1].trim());
         const tag = isHeader ? 'th' : 'td';
         const head = isHeader ? 'background:#25262b;font-weight:600;color:#e0e0e0;' : '';
-        const cells = line.split('|').filter(c => c.trim() !== '');
+        const cells = line.split('|').slice(1, -1).map(c => c.trim());
         out.push('<tr>');
         cells.forEach(c => out.push(`<${tag} style="border:1px solid #373a40;padding:4px 8px;text-align:left;${head}">${c.trim()}</${tag}>`));
         out.push('</tr>');
