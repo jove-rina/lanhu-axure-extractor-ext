@@ -1,7 +1,8 @@
 /**
- * 蓝湖 Axure 需求提取器 — 内容脚本 v2.1
+ * 蓝湖 Axure 需求提取器 — 内容脚本 v2.2
  *
- * 拾取模式改为页面内浮动面板，不依赖 popup 生命周期。
+ * 拾取模式改为框选（拖拽选择区域），支持跨 iframe。
+ * 只在顶层 frame 显示浮动面板，iframe 中的选择结果通过 postMessage 传回。
  */
 
 (() => {
@@ -21,21 +22,12 @@
 
   function axureText(el) {
     if (!el) return '';
-    const td = el.querySelector('.text, [id$="_text"]');
+    const td = el.closest('[id$="_text"]') || el.querySelector('.text, [id$="_text"]');
     if (td && td.innerText.trim()) return td.innerText.trim();
     return el.innerText.trim();
   }
 
-  function isVisible(el) {
-    if (!el || el.classList.contains('ax_default_hidden')) return false;
-    const r = el.getBoundingClientRect();
-    return r.width > 2 && r.height > 2;
-  }
-
   function escapeMd(t) { return (t || '').replace(/\|/g, '\\|').replace(/\n/g, ' '); }
-
-  const SKIP_CLASSES = ['image', '_图片_', '_图片_1', 'line', '_线段', 'horizontal_line',
-    'vertical_line', 'icon', 'iconfont', '_连接', 'ax_default_hidden'];
 
   // ==================== 表格构建 ====================
 
@@ -46,21 +38,17 @@
     }).filter(c => c.text.length > 0);
 
     if (items.length < 4) return null;
-
     const rows = [];
-    const yTol = 8;
     [...items].sort((a, b) => a.y - b.y).forEach(c => {
-      let row = rows.find(r => Math.abs(r.y - c.y) <= yTol);
+      let row = rows.find(r => Math.abs(r.y - c.y) <= 8);
       if (row) { row.cells.push(c); row.y = Math.min(row.y, c.y); }
       else rows.push({ y: c.y, cells: [c] });
     });
     rows.forEach(r => r.cells.sort((a, b) => a.x - b.x));
-
     if (rows.length < 2) return null;
     const maxCols = Math.max(...rows.map(r => r.cells.length));
     if (maxCols < 2) return null;
     rows.forEach(r => { while (r.cells.length < maxCols) r.cells.push({ text: '' }); });
-
     return { rows: rows.length, cols: maxCols, rowData: rows.map(r => r.cells.map(c => c.text)) };
   }
 
@@ -74,247 +62,285 @@
     return lines.join('\n');
   }
 
-  // ==================== 拾取模式 + 浮动面板 ====================
+  /** 框选区域内的所有元素 → 尝试构建表格 */
+  function extractFromRect(x1, y1, x2, y2) {
+    const left = Math.min(x1, x2), top = Math.min(y1, y2);
+    const right = Math.max(x1, x2), bottom = Math.max(y1, y2);
 
-  let pickerActive = false;
-  let pickerHighlight = null;
-  let pickerFloater = null;
-  let pickerTarget = null;
+    // 收集区域内所有可见的 Axure 组件
+    const all = document.querySelectorAll('.ax_default.table_cell, .ax_default._形状1, .ax_default.shape, ' +
+      '.ax_default.label, .ax_default.label1, .ax_default.box_1, .ax_default.box_2, ' +
+      '.ax_default._文本段落1, .ax_default._文本段落, .ax_default.paragraph1');
 
-  const FLOATER_HTML = `
-    <div id="__lh_floater" style="all:initial;position:fixed;z-index:2147483647;bottom:20px;right:20px;
-      width:420px;max-height:500px;background:#1a1b1e;border:1px solid #373a40;border-radius:8px;
-      box-shadow:0 8px 32px rgba(0,0,0,0.5);font-family:-apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif;
-      font-size:13px;color:#c1c2c5;display:none;flex-direction:column;overflow:hidden;cursor:default;">
-      <div id="__lh_header" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;
-        background:#25262b;border-bottom:1px solid #373a40;cursor:move;user-select:none;">
-        <span style="color:#f08c00;font-weight:600;font-size:13px;">🎯 拾取结果</span>
-        <div style="display:flex;gap:6px;">
-          <button id="__lh_copy" style="background:#2b8a3e;color:#fff;border:none;border-radius:4px;
-            padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;">📋 复制</button>
-          <button id="__lh_dl" style="background:#f08c00;color:#fff;border:none;border-radius:4px;
-            padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;">💾 下载</button>
-          <button id="__lh_close" style="background:transparent;color:#909296;border:1px solid #373a40;
-            border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:inherit;">✕</button>
-        </div>
-      </div>
-      <div id="__lh_body" style="padding:12px;overflow-y:auto;max-height:380px;white-space:pre-wrap;
-        font-size:12px;line-height:1.6;color:#909296;"></div>
-      <div style="padding:6px 14px;background:#25262b;border-top:1px solid #373a40;font-size:11px;color:#5c5f66;
-        display:flex;justify-content:space-between;">
-        <span id="__lh_status">悬停元素查看，点击提取</span>
-        <span>ESC 退出</span>
-      </div>
-    </div>`;
-
-  let floaterMounted = false;
-
-  function mountFloater() {
-    if (floaterMounted) return;
-    const div = document.createElement('div');
-    div.innerHTML = FLOATER_HTML;
-    document.body.appendChild(div.firstElementChild);
-    floaterMounted = true;
-
-    const floater = document.getElementById('__lh_floater');
-    if (!floater) return;
-    pickerFloater = floater;
-
-    document.getElementById('__lh_close')?.addEventListener('click', () => deactivatePicker());
-    document.getElementById('__lh_copy')?.addEventListener('click', () => {
-      const body = document.getElementById('__lh_body');
-      if (!body || !body.textContent) return;
-      navigator.clipboard.writeText(body.textContent).then(() => {
-        document.getElementById('__lh_status').textContent = '✅ 已复制';
-        setTimeout(() => document.getElementById('__lh_status').textContent = '悬停查看，点击提取', 2000);
-      });
+    const inRect = [];
+    all.forEach(el => {
+      const r = el.getBoundingClientRect();
+      if (r.left >= left && r.top >= top && r.right <= right && r.bottom <= bottom) {
+        const t = axureText(el);
+        if (t) inRect.push(el);
+      }
     });
-    document.getElementById('__lh_dl')?.addEventListener('click', () => {
-      const body = document.getElementById('__lh_body');
-      if (!body || !body.textContent) return;
-      const blob = new Blob([body.textContent], { type: 'text/markdown' });
+
+    if (inRect.length === 0) {
+      // 降级：取区域内第一个非空文本
+      const e = document.elementFromPoint((left + right) / 2, (top + bottom) / 2);
+      if (e) return { type: 'text', markdown: axureText(e) || e.innerText.trim() };
+      return { type: 'empty', markdown: '' };
+    }
+
+    // 优先尝试表格
+    const table = buildTable(inRect);
+    if (table) return { type: 'table', markdown: mdTable(table) };
+
+    // 否则作为文本块
+    const texts = inRect.map(el => axureText(el)).filter(t => t);
+    return { type: 'text', markdown: texts.join('\n\n') };
+  }
+
+  // ==================== 拾取 ====================
+
+  let active = false;
+  let floater = null;
+  let rubber = null;
+
+  let selStartX = 0, selStartY = 0, selEndX = 0, selEndY = 0;
+  let isDragging = false;
+
+  // ---- 浮动面板 ----
+
+  const HTML = `
+<div id="__lh_f" style="all:initial;position:fixed;z-index:2147483647;bottom:20px;right:20px;
+  width:420px;max-height:500px;background:#1a1b1e;border:1px solid #373a40;border-radius:8px;
+  box-shadow:0 8px 32px rgba(0,0,0,0.5);font:13px -apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif;
+  color:#c1c2c5;display:none;flex-direction:column;overflow:hidden;">
+  <div id="__lh_f_h" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;
+    background:#25262b;border-bottom:1px solid #373a40;cursor:move;user-select:none;">
+    <span style="color:#f08c00;font-weight:600;font-size:13px;">🎯 拾取</span>
+    <div style="display:flex;gap:4px;">
+      <button id="__lh_f_cp" style="background:#2b8a3e;color:#fff;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;">📋</button>
+      <button id="__lh_f_dl" style="background:#f08c00;color:#fff;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;">💾</button>
+      <button id="__lh_f_x" style="background:transparent;color:#909296;border:1px solid #373a40;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;">✕</button>
+    </div>
+  </div>
+  <div id="__lh_f_b" style="padding:12px;overflow-y:auto;max-height:380px;white-space:pre-wrap;font-size:12px;line-height:1.6;color:#909296;"></div>
+  <div style="padding:6px 14px;background:#25262b;border-top:1px solid #373a40;font-size:11px;color:#5c5f66;
+    display:flex;justify-content:space-between;">
+    <span id="__lh_f_s">拖拽框选区域进行提取</span>
+    <span>ESC 退出</span>
+  </div>
+</div>`;
+
+  function createFloater() {
+    if (document.getElementById('__lh_f')) return;
+    const d = document.createElement('div');
+    d.innerHTML = HTML;
+    document.body.appendChild(d.firstElementChild);
+    floater = document.getElementById('__lh_f');
+
+    // 按钮
+    document.getElementById('__lh_f_x')?.addEventListener('click', (e) => { e.stopPropagation(); deactivate(); });
+    document.getElementById('__lh_f_cp')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const b = document.getElementById('__lh_f_b');
+      if (b && b.textContent) navigator.clipboard.writeText(b.textContent).then(() => setStatus('✅ 已复制'));
+    });
+    document.getElementById('__lh_f_dl')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const b = document.getElementById('__lh_f_b');
+      if (!b || !b.textContent) return;
+      const blob = new Blob([b.textContent], { type: 'text/markdown' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = `拾取_${Date.now()}.md`;
       a.click();
-      URL.revokeObjectURL(a.href);
     });
 
     // 拖拽
-    const header = document.getElementById('__lh_header');
-    if (header) {
-      header.addEventListener('mousedown', (e) => {
+    const h = document.getElementById('__lh_f_h');
+    if (h) {
+      h.addEventListener('mousedown', (e) => {
         if (e.target.tagName === 'BUTTON') return;
-        e.preventDefault();
-        const rect = floater.getBoundingClientRect();
-        const dx = e.clientX - rect.left;
-        const dy = e.clientY - rect.top;
-        floater.style.bottom = 'auto';
-        floater.style.right = 'auto';
-        floater.style.left = rect.left + 'px';
-        floater.style.top = rect.top + 'px';
-
-        const onDrag = (ev) => {
-          floater.style.left = (ev.clientX - dx) + 'px';
-          floater.style.top = (ev.clientY - dy) + 'px';
-        };
-        const onUp = () => {
-          document.removeEventListener('mousemove', onDrag);
-          document.removeEventListener('mouseup', onUp);
-        };
-        document.addEventListener('mousemove', onDrag);
-        document.addEventListener('mouseup', onUp);
+        const r = floater.getBoundingClientRect();
+        const dx = e.clientX - r.left, dy = e.clientY - r.top;
+        floater.style.bottom = 'auto'; floater.style.right = 'auto';
+        floater.style.left = r.left + 'px'; floater.style.top = r.top + 'px';
+        const mv = (ev) => { floater.style.left = (ev.clientX - dx) + 'px'; floater.style.top = (ev.clientY - dy) + 'px'; };
+        const up = () => { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); };
+        document.addEventListener('mousemove', mv);
+        document.addEventListener('mouseup', up);
       });
     }
   }
 
-  function showFloater() {
-    if (!pickerFloater) return;
-    pickerFloater.style.display = 'flex';
-  }
+  function showFloater() { if (floater) floater.style.display = 'flex'; }
+  function hideFloater() { if (floater) floater.style.display = 'none'; }
+  function removeFloater() { if (floater) { floater.remove(); floater = null; } }
 
-  function hideFloater() {
-    if (!pickerFloater) return;
-    pickerFloater.style.display = 'none';
-  }
-
-  function setFloaterContent(md, type) {
-    const body = document.getElementById('__lh_body');
-    const status = document.getElementById('__lh_status');
-    if (body) body.textContent = md;
-    if (status) status.textContent = `✅ 已提取 (${type})`;
+  function setContent(md, type) {
+    const b = document.getElementById('__lh_f_b');
+    const s = document.getElementById('__lh_f_s');
+    if (b) b.textContent = md;
+    if (s) s.textContent = `✅ 已提取 (${type})`;
     showFloater();
   }
 
-  function removeFloater() {
-    if (pickerFloater) { pickerFloater.remove(); pickerFloater = null; }
-    floaterMounted = false;
+  function setStatus(msg) {
+    const s = document.getElementById('__lh_f_s');
+    if (s) s.textContent = msg;
   }
 
-  // ---- 高亮框 ----
-  function initHighlight() {
-    pickerHighlight = document.createElement('div');
-    Object.assign(pickerHighlight.style, {
-      position: 'fixed', pointerEvents: 'none', zIndex: '2147483646',
-      border: '2px solid #f08c00', background: 'rgba(240,140,0,0.08)',
-      borderRadius: '4px', transition: 'all 0.05s', display: 'none',
+  // ---- 橡皮筋选框 ----
+
+  function createRubber() {
+    if (document.getElementById('__lh_r')) return;
+    rubber = document.createElement('div');
+    rubber.id = '__lh_r';
+    Object.assign(rubber.style, {
+      position: 'fixed', zIndex: '2147483645', pointerEvents: 'none',
+      border: '2px dashed #f08c00', background: 'rgba(240,140,0,0.06)',
+      borderRadius: '4px', display: 'none',
     });
-    pickerHighlight.id = '__lh_hl';
-    document.body.appendChild(pickerHighlight);
+    document.body.appendChild(rubber);
   }
 
-  function removeHighlight() {
-    if (pickerHighlight) { pickerHighlight.remove(); pickerHighlight = null; }
+  function removeRubber() { if (rubber) { rubber.remove(); rubber = null; } }
+
+  function updateRubber(x1, y1, x2, y2) {
+    if (!rubber) return;
+    const l = Math.min(x1, x2), t = Math.min(y1, y2);
+    rubber.style.display = 'block';
+    rubber.style.left = l + 'px';
+    rubber.style.top = t + 'px';
+    rubber.style.width = Math.abs(x2 - x1) + 'px';
+    rubber.style.height = Math.abs(y2 - y1) + 'px';
   }
 
-  // ---- 事件处理 ----
-  function onMove(e) {
-    const el = document.elementFromPoint(e.clientX, e.clientY);
-    if (!el || el.id?.startsWith('__lh_')) return;
-    pickerTarget = el;
-    const rect = el.getBoundingClientRect();
-    if (!rect || rect.width === 0) return;
-    if (pickerHighlight) {
-      Object.assign(pickerHighlight.style, {
-        display: 'block', left: rect.left + 'px', top: rect.top + 'px',
-        width: rect.width + 'px', height: rect.height + 'px',
-      });
+  // ---- 事件 ----
+
+  function onMouseDown(e) {
+    if (e.button !== 0) return;
+    // 点在浮动面板上则忽略
+    if (e.target.closest && e.target.closest('#__lh_f')) return;
+    isDragging = true;
+    selStartX = selEndX = e.clientX;
+    selStartY = selEndY = e.clientY;
+    createRubber();
+    updateRubber(selStartX, selStartY, selEndX, selEndY);
+    setStatus('拖动选择区域...');
+  }
+
+  function onMouseMove(e) {
+    if (!isDragging) return;
+    selEndX = e.clientX;
+    selEndY = e.clientY;
+    updateRubber(selStartX, selStartY, selEndX, selEndY);
+  }
+
+  function onMouseUp(e) {
+    if (!isDragging) return;
+    isDragging = false;
+    selEndX = e.clientX;
+    selEndY = e.clientY;
+
+    const area = Math.abs((selEndX - selStartX) * (selEndY - selStartY));
+    if (area < 100) {
+      setStatus('选中区域太小（至少 10x10 像素），请重新框选');
+      removeRubber();
+      return;
     }
-    const status = document.getElementById('__lh_status');
-    if (status) {
-      const text = (axureText(el) || '').substring(0, 40).replace(/\n/g, ' ');
-      status.textContent = `<${el.tagName.toLowerCase()}> ${text}`;
+
+    setStatus('提取中...');
+
+    // 如果是 iframe，发送结果到顶层 frame
+    if (FRAME_CTX !== 'top') {
+      try {
+        window.top.postMessage({ type: '__lh_picker_result', x1: selStartX, y1: selStartY, x2: selEndX, y2: selEndY }, '*');
+      } catch {}
+      setStatus('✅ 已发送到顶层页面');
+      removeRubber();
+      return;
     }
+
+    // 顶层 frame：直接提取
+    const result = extractFromRect(selStartX, selStartY, selEndX, selEndY);
+    if (result.markdown) {
+      setContent(result.markdown, result.type);
+    } else {
+      setStatus('⚠️ 未提取到内容');
+    }
+    removeRubber();
   }
 
-  function onClick(e) {
-    if (!pickerTarget) return;
-    e.preventDefault();
-    e.stopPropagation();
-    e.stopImmediatePropagation();
+  function onKeyDown(e) {
+    if (e.key === 'Escape') deactivate();
+  }
 
-    const el = pickerTarget;
-    let md = '', type = 'text';
-
-    // 尝试提取表格
-    const parent = el.closest('.ax_default') || el.parentElement;
-    if (parent) {
-      for (const sel of ['.ax_default.table_cell', '.ax_default._形状1']) {
-        const cells = parent.querySelectorAll(sel);
-        if (cells.length >= 4) {
-          const table = buildTable(cells);
-          if (table) { md = mdTable(table); type = 'table'; break; }
+  // ---- 接收 iframe 消息 ----
+  function setupMessageListener() {
+    window.addEventListener('message', (e) => {
+      if (e.data && e.data.type === '__lh_picker_result') {
+        const result = extractFromRect(e.data.x1, e.data.y1, e.data.x2, e.data.y2);
+        if (result.markdown) {
+          setContent(result.markdown, result.type + ' (iframe)');
+        } else {
+          setStatus('⚠️ iframe 区域未提取到内容');
         }
       }
-    }
-    if (!md && el) {
-      for (const sel of ['.ax_default.table_cell', '.ax_default._形状1']) {
-        const cells = el.querySelectorAll(sel);
-        if (cells.length >= 4) {
-          const table = buildTable(cells);
-          if (table) { md = mdTable(table); type = 'table'; break; }
-        }
-      }
-    }
-    if (!md) { md = axureText(el) || el.innerText.trim(); type = 'text'; }
-
-    setFloaterContent(md, type);
-  }
-
-  function onKey(e) {
-    if (e.key === 'Escape') deactivatePicker();
+    });
   }
 
   // ---- 激活/停用 ----
-  function activatePicker() {
-    if (pickerActive) return;
-    pickerActive = true;
 
-    initHighlight();
-    // 只在顶层 frame 创建浮动面板
+  function activate() {
+    if (active) return;
+    active = true;
+
     if (FRAME_CTX === 'top') {
-      mountFloater();
+      createFloater();
       showFloater();
+      setupMessageListener();
     }
 
-    document.addEventListener('mousemove', onMove, true);
-    document.addEventListener('click', onClick, true);
-    document.addEventListener('keydown', onKey, true);
+    createRubber();
+    document.addEventListener('mousedown', onMouseDown, true);
+    document.addEventListener('mousemove', onMouseMove, true);
+    document.addEventListener('mouseup', onMouseUp, true);
+    document.addEventListener('keydown', onKeyDown, true);
 
     document.body.style.cursor = 'crosshair';
     document.body.style.userSelect = 'none';
-
-    console.log('[蓝湖提取器] 拾取模式已激活 —', FRAME_CTX);
+    console.log('[蓝湖提取器] 框选模式已激活 —', FRAME_CTX);
   }
 
-  function deactivatePicker() {
-    if (!pickerActive) return;
-    pickerActive = false;
+  function deactivate() {
+    if (!active) return;
+    active = false;
 
-    document.removeEventListener('mousemove', onMove, true);
-    document.removeEventListener('click', onClick, true);
-    document.removeEventListener('keydown', onKey, true);
+    document.removeEventListener('mousedown', onMouseDown, true);
+    document.removeEventListener('mousemove', onMouseMove, true);
+    document.removeEventListener('mouseup', onMouseUp, true);
+    document.removeEventListener('keydown', onKeyDown, true);
 
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
 
-    removeHighlight();
+    removeRubber();
     removeFloater();
-    pickerTarget = null;
+    isDragging = false;
 
-    console.log('[蓝湖提取器] 拾取模式已退出');
+    console.log('[蓝湖提取器] 已退出');
   }
 
-  // ==================== 页面提取 ====================
+  // ==================== 页面全量提取（保持原有逻辑） ====================
 
   function extractTableCells(root) {
     const results = [];
     const allCells = root.querySelectorAll('.ax_default.table_cell');
     if (allCells.length < 4) return results;
-
     const groups = new Map();
     allCells.forEach(cell => {
-      if (!isVisible(cell)) return;
+      const r = cell.getBoundingClientRect();
+      if (r.width < 3 || r.height < 3) return;
       let p = cell.parentElement;
       while (p && p !== root && p !== root.body) {
         if (p.classList.contains('ax_default') || p.id === 'base') break;
@@ -324,19 +350,14 @@
       if (!groups.has(p)) groups.set(p, []);
       groups.get(p).push(cell);
     });
-
     groups.forEach((cells, container) => {
       if (cells.length < 4) return;
       const table = buildTable(cells);
       if (table) {
         const prev = container.previousElementSibling;
-        const heading = prev ? axureText(prev) : '';
-        results.push({
-          type: 'table',
-          heading: heading && heading.length < 100 ? heading : `数据表 ${results.length + 1}`,
-          rows: table.rows, cols: table.cols,
-          markdown: `### ${heading && heading.length < 100 ? heading : `数据表 ${results.length + 1}`}\n\n${mdTable(table)}`,
-        });
+        const h = prev ? axureText(prev) : '';
+        results.push({ type:'table', heading: h && h.length<100 ? h : `数据表 ${results.length+1}`,
+          markdown: `### ${h && h.length<100 ? h : `数据表 ${results.length+1}`}\n\n${mdTable(table)}` });
       }
     });
     return results;
@@ -346,112 +367,84 @@
     const results = [];
     const shapes = root.querySelectorAll('.ax_default._形状1');
     if (shapes.length < 6) return results;
-
     const groups = new Map();
     shapes.forEach(s => {
-      if (!isVisible(s)) return;
-      const text = axureText(s);
-      if (!text) return;
+      const r = s.getBoundingClientRect();
+      if (r.width < 3 || r.height < 3) return;
+      const t = axureText(s); if (!t) return;
       let p = s.parentElement;
       while (p && p !== root && p !== root.body) {
-        if (['ax_default', 'panel_state_content', 'panel_state'].some(c => p.classList.contains(c)) || p.id === 'base') break;
+        if (['ax_default','panel_state_content','panel_state'].some(c => p.classList.contains(c)) || p.id === 'base') break;
         p = p.parentElement;
       }
       if (!p) p = s.parentElement;
       if (!groups.has(p)) groups.set(p, []);
       groups.get(p).push(s);
     });
-
     groups.forEach((shapes, container) => {
       if (shapes.length < 6) return;
       const table = buildTable(shapes);
       if (table && table.rows >= 2 && table.cols >= 2) {
         const prev = container.previousElementSibling;
-        const heading = prev ? axureText(prev) : '';
-        results.push({ type: 'shape-grid', heading: heading || '数据区域', rows: table.rows, cols: table.cols,
-          markdown: `### ${heading || '数据区域'}\n\n${mdTable(table)}` });
+        const h = prev ? axureText(prev) : '';
+        results.push({ type:'shape-grid', heading: h||'数据区域', markdown: `### ${h||'数据区域'}\n\n${mdTable(table)}` });
       }
     });
     return results;
   }
 
   function extractFromDocument(doc) {
-    const root = doc.body || doc;
-    if (!root) return { sections: [], markdown: '' };
-
-    let sections = [];
-    sections.push(...extractTableCells(root));
-    sections.push(...extractShapeGrids(root));
-
-    // 标题
-    const headingSel = '.ax_default.heading_11,.ax_default.heading_21,.ax_default._二级标题1,' +
-      '.ax_default._三级标题,.ax_default.label,.ax_default.label1,h1,h2,h3,h4,h5,h6';
+    const root = doc.body || doc; if (!root) return { sections: [], markdown: '' };
+    const sections = [...extractTableCells(root), ...extractShapeGrids(root)];
     const seen = new Set();
-    root.querySelectorAll(headingSel).forEach(el => {
-      if (!isVisible(el)) return;
-      const t = axureText(el);
-      if (!t || seen.has(t) || t.length < 2) return;
-      seen.add(t);
-      let level = '##';
-      if (el.classList.contains('_三级标题')) level = '####';
-      else if (el.classList.contains('_二级标题1') || el.classList.contains('heading_21')) level = '###';
-      else if (el.classList.contains('heading_11')) level = '##';
-      sections.push({ type: 'heading', markdown: `${level} ${t}` });
+    const sel = '.ax_default.heading_11,.ax_default.heading_21,.ax_default._二级标题1,' +
+      '.ax_default._三级标题,.ax_default.label,.ax_default.label1,h1,h2,h3,h4,h5,h6';
+    root.querySelectorAll(sel).forEach(el => {
+      const t = axureText(el); if (!t || seen.has(t) || t.length < 2) return; seen.add(t);
+      let lv = '##';
+      if (el.classList.contains('_三级标题')) lv = '####';
+      else if (el.classList.contains('_二级标题1')||el.classList.contains('heading_21')) lv = '###';
+      sections.push({ type:'heading', markdown: `${lv} ${t}` });
     });
-
-    // 复选框
     const cbs = [];
     root.querySelectorAll('.ax_default.checkbox').forEach(cb => {
-      if (!isVisible(cb)) return;
-      const t = axureText(cb);
-      if (t) cbs.push(t);
+      const r = cb.getBoundingClientRect();
+      if (r.width > 2) { const t = axureText(cb); if (t) cbs.push(t); }
     });
-    if (cbs.length > 0) sections.push({ type: 'checkbox', markdown: `## 选项\n\n${cbs.map(t => `- [ ] ${t}`).join('\n')}` });
+    if (cbs.length > 0) sections.push({ type:'checkbox', markdown: `## 选项\n\n${cbs.map(t=>`- [ ] ${t}`).join('\n')}` });
 
-    // 构建 Markdown
-    const title = doc.title || '未知页面';
-    const lines = [`# ${title}`, '', `**提取时间**: ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`, '', '---', ''];
+    const lines = [`# ${doc.title||'未知页面'}`, '', `**提取时间**: ${new Date().toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'})}`,'','---',''];
     const seenMd = new Set();
-    sections.forEach(s => {
-      if (!s.markdown || seenMd.has(s.markdown)) return;
-      seenMd.add(s.markdown);
-      lines.push(s.markdown); lines.push('');
-    });
+    sections.forEach(s => { if (s.markdown && !seenMd.has(s.markdown)) { seenMd.add(s.markdown); lines.push(s.markdown); lines.push(''); } });
     return { sections, markdown: lines.join('\n') };
   }
 
+  // ==================== API ====================
+
   function fullExtract() {
-    const main = extractFromDocument(document);
-    return { frame: FRAME_CTX, isAxureContent: !!document.querySelector('.ax_default'),
-      pages: [{ frame: FRAME_CTX, title: document.title, sections: main.sections, markdown: main.markdown }],
-      combinedMarkdown: main.markdown };
+    const m = extractFromDocument(document);
+    return { frame:FRAME_CTX, isAxureContent:!!document.querySelector('.ax_default'),
+      pages:[{frame:FRAME_CTX,title:document.title,sections:m.sections,markdown:m.markdown}], combinedMarkdown:m.markdown };
   }
-
   function simpleExtract() {
-    const result = extractFromDocument(document);
-    return { frame: FRAME_CTX, isAxureContent: !!document.querySelector('.ax_default'),
-      pages: [{ frame: FRAME_CTX, title: document.title, sections: result.sections, markdown: result.markdown }],
-      combinedMarkdown: result.markdown };
+    const r = extractFromDocument(document);
+    return { frame:FRAME_CTX, isAxureContent:!!document.querySelector('.ax_default'),
+      pages:[{frame:FRAME_CTX,title:document.title,sections:r.sections,markdown:r.markdown}], combinedMarkdown:r.markdown };
   }
-
   function getDiagnostics() {
-    return { frame: FRAME_CTX, title: document.title,
-      tableCells: document.querySelectorAll('.ax_default.table_cell').length,
-      shapes: document.querySelectorAll('.ax_default._形状1').length,
-      widgets: document.querySelectorAll('.ax_default').length };
+    return { frame:FRAME_CTX, title:document.title,
+      tableCells:document.querySelectorAll('.ax_default.table_cell').length,
+      shapes:document.querySelectorAll('.ax_default._形状1').length,
+      widgets:document.querySelectorAll('.ax_default').length };
   }
-
-  // ==================== 消息处理 ====================
 
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     switch (request.action) {
-      case 'extract-axure':
-        sendResponse({ status: 'ok', data: FRAME_CTX === 'top' ? fullExtract() : simpleExtract() });
-        break;
-      case 'ping': sendResponse({ pong: true, frame: FRAME_CTX }); break;
-      case 'diagnose-me': sendResponse({ status: 'ok', data: getDiagnostics() }); break;
-      case 'start-picker': activatePicker(); sendResponse({ status: 'ok' }); break;
-      case 'stop-picker': deactivatePicker(); sendResponse({ status: 'ok' }); break;
+      case 'extract-axure': sendResponse({status:'ok', data:FRAME_CTX==='top'?fullExtract():simpleExtract()}); break;
+      case 'ping': sendResponse({pong:true, frame:FRAME_CTX}); break;
+      case 'diagnose-me': sendResponse({status:'ok', data:getDiagnostics()}); break;
+      case 'start-picker': activate(); sendResponse({status:'ok'}); break;
+      case 'stop-picker': deactivate(); sendResponse({status:'ok'}); break;
     }
     return true;
   });
