@@ -526,6 +526,35 @@
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
     setStatus('');
+
+    // 通知 iframe 取消拾取
+    document.querySelectorAll('iframe').forEach(f => {
+      try { f.contentWindow.postMessage({ type: '__lh_cancel_pick' }, '*'); } catch {}
+    });
+  }
+
+  /** 双击拾取父级 / 单击拾取元素 */
+  function doPickPick(el, pickParent) {
+    const target = pickParent
+      ? (findContainer(el).el || el.parentElement || el)
+      : (findContainer(el).el || el);
+    console.log('[蓝湖] pick target:', target.tagName, 'parentMode:', pickParent);
+    const result = extractFromEl(target);
+    console.log('[蓝湖] extract result:', result?.type, result?.markdown?.slice(0, 60));
+    if (result.markdown) {
+      if (FRAME_CTX !== 'top') {
+        try {
+          window.top.postMessage({ type: '__lh_picker_result', markdown: result.markdown, sourceType: result.type }, '*');
+          console.log('[蓝湖] iframe 结果已发送到顶层');
+        } catch { console.log('[蓝湖] 无法发送到顶层'); }
+      } else {
+        finishPick(result.markdown);
+      }
+      hideHighlight();
+      console.log('[蓝湖] pick done');
+    } else {
+      setStatus('⚠️ 所选区域无内容');
+    }
   }
 
   // ---- 预览 ----
@@ -581,6 +610,14 @@ strong{color:#e0e0e0}
       return;
     }
     createdByMe = true;
+    // 注入动画 keyframes
+    const styleId = '__lh_f_anim';
+    if (!document.getElementById(styleId)) {
+      const st = document.createElement('style');
+      st.id = styleId;
+      st.textContent = '@keyframes lhFadeIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:translateY(0); } }';
+      document.head.appendChild(st);
+    }
     const d = document.createElement('div');
     d.innerHTML = HTML;
     document.body.appendChild(d.firstElementChild);
@@ -591,6 +628,46 @@ strong{color:#e0e0e0}
 
     // 新增模块
     document.getElementById('__lh_f_add')?.addEventListener('click', (e) => { e.stopPropagation(); addModule(); });
+
+    // 重新激活
+    document.getElementById('__lh_f_reinit')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.removeEventListener('mousedown', onMouseDown, true);
+      document.removeEventListener('mousemove', onMouseMove, true);
+      document.removeEventListener('mouseup', onMouseUp, true);
+      document.removeEventListener('keydown', onKeyDown, true);
+      document.addEventListener('mousedown', onMouseDown, true);
+      document.addEventListener('mousemove', onMouseMove, true);
+      document.addEventListener('mouseup', onMouseUp, true);
+      document.addEventListener('keydown', onKeyDown, true);
+      setStatus('🔄 已重新激活');
+    });
+
+    // 全选
+    document.getElementById('__lh_f_selall')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (selectedModuleIds.size === modules.length) {
+        selectedModuleIds.clear();
+      } else {
+        selectedModuleIds = new Set(modules.map(m => m.id));
+      }
+      renderModuleList();
+    });
+
+    // 删除选中
+    document.getElementById('__lh_f_del_sel')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (selectedModuleIds.size === 0) { setStatus('⚠️ 请先勾选要删除的模块'); return; }
+      modules = modules.filter(m => !selectedModuleIds.has(m.id));
+      selectedModuleIds.clear();
+      if (expandedModuleId !== null && !modules.find(m => m.id === expandedModuleId)) {
+        expandedModuleId = modules[modules.length - 1]?.id || null;
+      }
+      renderModuleList();
+      clampFloaterPosition();
+      saveModules();
+      setStatus(`✅ 已删除，剩余 ${modules.length} 个模块`);
+    });
 
     // 预览
     document.getElementById('__lh_f_preview')?.addEventListener('click', (e) => { e.stopPropagation(); showPreview(); });
@@ -608,16 +685,26 @@ strong{color:#e0e0e0}
       setStatus('✅ 已下载');
     });
 
-    // 拖拽
+    // 拖拽 — 边界约束
     const h = document.getElementById('__lh_f_h');
     if (h) {
       h.addEventListener('mousedown', (e) => {
         if (e.target.tagName === 'BUTTON') return;
         const r = floater.getBoundingClientRect();
         const dx = e.clientX - r.left, dy = e.clientY - r.top;
+        const fw = floater.offsetWidth, fh = floater.offsetHeight;
         floater.style.bottom = 'auto'; floater.style.right = 'auto';
         floater.style.left = r.left + 'px'; floater.style.top = r.top + 'px';
-        const mv = (ev) => { floater.style.left = (ev.clientX - dx) + 'px'; floater.style.top = (ev.clientY - dy) + 'px'; };
+        const vw = window.innerWidth, vh = window.innerHeight;
+        const mv = (ev) => {
+          let x = ev.clientX - dx, y = ev.clientY - dy;
+          if (x < 0) x = 0;
+          if (x + fw > vw) x = vw - fw;
+          if (y < 0) y = 0;
+          if (y + fh > vh) y = vh - fh;
+          floater.style.left = x + 'px';
+          floater.style.top = y + 'px';
+        };
         const up = () => { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); };
         document.addEventListener('mousemove', mv);
         document.addEventListener('mouseup', up);
@@ -626,11 +713,66 @@ strong{color:#e0e0e0}
 
     renderModuleList();
     loadModules();
+
+    // ---- 页面切换检测：发现切换就关浮窗 + 提示 ----
+    urlPollTimer = setInterval(() => {
+      if (!document.getElementById('__lh_f')) {
+        clearInterval(urlPollTimer);
+        urlPollTimer = null;
+        return;
+      }
+      const newKey = getStorageKey();
+      if (newKey === currentStorageKey) return;
+      saveModules();
+      if (pickMode) cancelPick();
+      showPageSwitchTip();
+      deactivate();
+    }, 500);
+  }
+
+  /** 页面切换提示遮罩 */
+  function showPageSwitchTip() {
+    const tip = document.createElement('div');
+    tip.id = '__lh_tip';
+    Object.assign(tip.style, {
+      position: 'fixed', zIndex: '2147483647', inset: '0',
+      background: 'rgba(26,27,30,0.65)',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      font: '14px -apple-system,BlinkMacSystemFont,\'PingFang SC\',sans-serif', color: '#c1c2c5',
+    });
+    tip.innerHTML = `<div style="background:#25262b;border:1px solid #373a40;border-radius:12px;padding:32px 40px;text-align:center;max-width:400px;">
+      <div style="font-size:36px;margin-bottom:12px;">📄</div>
+      <div style="font-size:16px;font-weight:600;color:#fff;margin-bottom:8px;">页面已切换</div>
+      <div style="font-size:13px;color:#909296;line-height:1.6;margin-bottom:20px;">
+        当前页面的模块数据已自动保存。<br>
+        如需继续编辑，请点击浏览器右上角扩展图标<br>
+        选择「<span style="color:#f08c00;font-weight:600;">打开文档构建器</span>」
+      </div>
+      <button id="__lh_tip_close" style="background:#373a40;color:#909296;border:none;border-radius:6px;padding:8px 24px;font-size:13px;cursor:pointer;">我知道了</button>
+    </div>`;
+    document.body.appendChild(tip);
+    document.getElementById('__lh_tip_close')?.addEventListener('click', () => { tip.remove(); });
   }
 
   function showFloater() { if (floater) floater.style.display = 'flex'; }
   function hideFloater() { if (floater) floater.style.display = 'none'; }
   function removeFloater() { if (floater) { floater.remove(); floater = null; } }
+
+  /** 将浮窗位置钳制在可视边界内 */
+  function clampFloaterPosition() {
+    if (!floater || floater.style.display === 'none') return;
+    const r = floater.getBoundingClientRect();
+    const vw = window.innerWidth, vh = window.innerHeight;
+    let x = parseFloat(floater.style.left) || r.left;
+    let y = parseFloat(floater.style.top) || r.top;
+    const fw = r.width, fh = r.height;
+    let changed = false;
+    if (x + fw > vw) { x = vw - fw; changed = true; }
+    if (x < 0) { x = 0; changed = true; }
+    if (y + fh > vh) { y = vh - fh; changed = true; }
+    if (y < 0) { y = 0; changed = true; }
+    if (changed) { floater.style.left = x + 'px'; floater.style.top = y + 'px'; }
+  }
 
   function setStatus(msg) {
     const s = document.getElementById('__lh_f_status');
@@ -1046,7 +1188,12 @@ strong{color:#e0e0e0}
       console.log('[蓝湖] mousedown → 浮动面板点击，跳过');
       return;
     }
-    console.log('[蓝湖] mousedown → 页面点击，清除选择');
+    if (!pickMode) {
+      if (selectionLocked) { hideHighlight(); selectionLocked = false; }
+      console.log('[蓝湖] mousedown → pickMode=false, 放行');
+      return;
+    }
+    console.log('[蓝湖] mousedown → 拾取模式拦截点击');
     hideHighlight();
     selectionLocked = false;
     e.preventDefault();
@@ -1100,17 +1247,16 @@ strong{color:#e0e0e0}
       // 拾取模式：提取元素填入当前字段
       if (pickMode && activePickField) {
         console.log('[蓝湖] pickMode click, activePickField:', activePickField, 'el:', el.tagName);
-        const container = findContainer(el);
-        const target = container.el || el;
-        console.log('[蓝湖] pick target:', target.tagName);
-        const result = extractFromEl(target);
-        console.log('[蓝湖] extract result:', result?.type, result?.markdown?.slice(0, 60));
-        if (result.markdown) {
-          finishPick(result.markdown);
-          hideHighlight();
-          console.log('[蓝湖] finishPick done');
+        if (pickDebounceTimer) clearTimeout(pickDebounceTimer);
+        if (e.detail >= 2) {
+          pickDebounceTimer = null;
+          doPickPick(el, true);
         } else {
-          setStatus('⚠️ 所选区域无内容');
+          const capturedEl = el;
+          pickDebounceTimer = setTimeout(() => {
+            pickDebounceTimer = null;
+            doPickPick(capturedEl, false);
+          }, 300);
         }
         return;
       }
