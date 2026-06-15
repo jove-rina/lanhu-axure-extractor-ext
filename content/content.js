@@ -122,6 +122,7 @@
     background:#25262b;border-bottom:1px solid #373a40;cursor:move;user-select:none;">
     <span style="color:#f08c00;font-weight:600;font-size:13px;">🎯 拾取</span>
     <div style="display:flex;gap:4px;">
+      <button id="__lh_f_ap" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;transition:all 0.15s;">📎 追加</button>
       <button id="__lh_f_cp" style="background:#2b8a3e;color:#fff;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;">📋</button>
       <button id="__lh_f_dl" style="background:#f08c00;color:#fff;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;">💾</button>
       <button id="__lh_f_x" style="background:transparent;color:#909296;border:1px solid #373a40;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;">✕</button>
@@ -160,6 +161,19 @@
       a.click();
     });
 
+    // 追加模式切换
+    const apBtn = document.getElementById('__lh_f_ap');
+    if (apBtn) {
+      apBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        appendMode = !appendMode;
+        apBtn.style.background = appendMode ? '#f08c00' : '#373a40';
+        apBtn.style.color = appendMode ? '#fff' : '#909296';
+        apBtn.textContent = appendMode ? '📎 追加中' : '📎 追加';
+        setStatus(appendMode ? '📎 追加模式 — 每次点击累加内容' : '追加模式已关闭');
+      });
+    }
+
     // 拖拽
     const h = document.getElementById('__lh_f_h');
     if (h) {
@@ -184,8 +198,14 @@
   function setContent(md, type) {
     const b = document.getElementById('__lh_f_b');
     const s = document.getElementById('__lh_f_s');
-    if (b) b.textContent = md;
-    if (s) s.textContent = `✅ 已提取 (${type})`;
+    if (!b) return;
+    if (appendMode && b.textContent) {
+      b.textContent = b.textContent + '\n\n---\n\n' + md;
+    } else {
+      b.textContent = md;
+    }
+    const mode = appendMode ? ' · 追加' : '';
+    if (s) s.textContent = `✅ 已提取 (${type})${mode}`;
     showFloater();
   }
 
@@ -226,28 +246,22 @@
 
   function findContainer(el) {
     let current = el;
-    for (let depth = 0; current && depth < 20; depth++) {
+    for (let i = 0; i < 4 && current; i++) {
       if (current === document.body || current === document.documentElement) break;
-      if (current.classList?.contains('ax_default')) return { el: current, depth };
-      if (current.classList?.contains('panel_state') || current.classList?.contains('panel_state_content')) return { el: current, depth };
-      if (/^u\d+/.test(current.id || '') && current.children?.length >= 3) return { el: current, depth };
-      const axChildren = current.querySelectorAll(':scope > .ax_default');
-      if (axChildren.length >= 3) return { el: current, depth };
+      const children = Array.from(current.children || []).filter(c => c.tagName !== 'BR');
+      if (children.length >= 2) return { el: current, depth: i };
       current = current.parentElement;
     }
-    return { el: el.parentElement || el, depth: -1 };
+    const fallback = el?.parentElement?.parentElement || el?.parentElement || el;
+    return { el: fallback, depth: -1 };
   }
 
   function getBreadcrumb(el) {
     const parts = [];
     let current = el;
-    for (let i = 0; current && i < 6; i++) {
+    for (let i = 0; current && i < 5; i++) {
       const tag = (current.tagName || '').toLowerCase();
-      const id = current.id ? `#${current.id}` : '';
-      const cls = current.className && typeof current.className === 'string'
-        ? '.' + current.className.split(/\s+/).filter(Boolean).slice(0, 1).join('.')
-        : '';
-      parts.unshift(`${tag}${id}${cls}`);
+      parts.unshift(tag);
       if (current === document.body || current === document.documentElement) break;
       current = current.parentElement;
     }
@@ -303,6 +317,9 @@
 
   // ---- 点击升级 (Click Escalation) ----
   let escalation = { target: null, time: 0, current: null };
+
+  // ---- 追加模式 ----
+  let appendMode = false;
 
   // ---- 事件 ----
   function onMouseDown(e) {
