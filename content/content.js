@@ -383,18 +383,21 @@
     if (!md) { setStatus('⚠️ 暂无内容'); return; }
     const w = window.open('', '_blank', 'width=900,height=700');
     if (!w) { setStatus('⚠️ 请允许弹出窗口'); return; }
+    // 预渲染 markdown → HTML（用 content script 自己的渲染器）
+    const html = renderMarkdown(md);
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>文档预览</title>
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"><\/script>
 <style>
+*{margin:0;padding:0;box-sizing:border-box}
 body{background:#1a1b1e;color:#c1c2c5;font:15px -apple-system,BlinkMacSystemFont,'PingFang SC','Noto Sans SC',sans-serif;padding:40px;max-width:800px;margin:auto;line-height:1.8}
 h1,h2,h3,h4{color:#f08c00;font-weight:600;margin:24px 0 12px}
-h1{border-bottom:1px solid #373a40;padding-bottom:8px}
+h1{border-bottom:1px solid #373a40;padding-bottom:8px;font-size:24px}
+h2{font-size:20px}h3{font-size:17px}
 table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
 th,td{border:1px solid #373a40;padding:8px 12px;text-align:left}
 th{background:#25262b;color:#e0e0e0;font-weight:600}
 tr:nth-child(even){background:rgba(255,255,255,0.02)}
 code{background:#25262b;padding:2px 6px;border-radius:3px;font-size:13px;color:#f08c00}
-pre{background:#25262b;padding:12px 16px;border-radius:6px;overflow-x:auto;font-size:13px;line-height:1.5}
+pre{background:#25262b;padding:12px 16px;border-radius:6px;overflow-x:auto;font-size:13px;line-height:1.5;margin:12px 0}
 pre code{background:none;padding:0;color:#c1c2c5}
 blockquote{border-left:3px solid #f08c00;margin:12px 0;padding:4px 16px;color:#909296}
 hr{border:none;border-top:1px solid #373a40;margin:24px 0}
@@ -403,10 +406,9 @@ a:hover{text-decoration:underline}
 ul,ol{padding-left:24px;margin:8px 0}
 li{margin:4px 0}
 img{max-width:100%;border-radius:4px}
-</style></head><body><div id="content"></div>
-<script>
-document.getElementById('content').innerHTML = marked.parse(${JSON.stringify(md)});
-<\/script></body></html>`);
+p{margin:8px 0}
+strong{color:#e0e0e0}
+</style></head><body>${html}</body></html>`);
     w.document.close();
     setStatus('✅ 预览已打开');
   }
