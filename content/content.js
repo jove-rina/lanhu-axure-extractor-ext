@@ -85,9 +85,9 @@
     <div id="__lh_floater" style="all:initial;position:fixed;z-index:2147483647;bottom:20px;right:20px;
       width:420px;max-height:500px;background:#1a1b1e;border:1px solid #373a40;border-radius:8px;
       box-shadow:0 8px 32px rgba(0,0,0,0.5);font-family:-apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif;
-      font-size:13px;color:#c1c2c5;display:none;flex-direction:column;overflow:hidden;">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;
-        background:#25262b;border-bottom:1px solid #373a40;">
+      font-size:13px;color:#c1c2c5;display:none;flex-direction:column;overflow:hidden;cursor:default;">
+      <div id="__lh_header" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;
+        background:#25262b;border-bottom:1px solid #373a40;cursor:move;user-select:none;">
         <span style="color:#f08c00;font-weight:600;font-size:13px;">🎯 拾取结果</span>
         <div style="display:flex;gap:6px;">
           <button id="__lh_copy" style="background:#2b8a3e;color:#fff;border:none;border-radius:4px;
@@ -139,6 +139,33 @@
       a.click();
       URL.revokeObjectURL(a.href);
     });
+
+    // 拖拽
+    const header = document.getElementById('__lh_header');
+    if (header) {
+      header.addEventListener('mousedown', (e) => {
+        if (e.target.tagName === 'BUTTON') return;
+        e.preventDefault();
+        const rect = floater.getBoundingClientRect();
+        const dx = e.clientX - rect.left;
+        const dy = e.clientY - rect.top;
+        floater.style.bottom = 'auto';
+        floater.style.right = 'auto';
+        floater.style.left = rect.left + 'px';
+        floater.style.top = rect.top + 'px';
+
+        const onDrag = (ev) => {
+          floater.style.left = (ev.clientX - dx) + 'px';
+          floater.style.top = (ev.clientY - dy) + 'px';
+        };
+        const onUp = () => {
+          document.removeEventListener('mousemove', onDrag);
+          document.removeEventListener('mouseup', onUp);
+        };
+        document.addEventListener('mousemove', onDrag);
+        document.addEventListener('mouseup', onUp);
+      });
+    }
   }
 
   function showFloater() {
@@ -244,8 +271,11 @@
     pickerActive = true;
 
     initHighlight();
-    mountFloater();
-    showFloater();
+    // 只在顶层 frame 创建浮动面板
+    if (FRAME_CTX === 'top') {
+      mountFloater();
+      showFloater();
+    }
 
     document.addEventListener('mousemove', onMove, true);
     document.addEventListener('click', onClick, true);
@@ -254,7 +284,7 @@
     document.body.style.cursor = 'crosshair';
     document.body.style.userSelect = 'none';
 
-    console.log('[蓝湖提取器] 拾取模式已激活');
+    console.log('[蓝湖提取器] 拾取模式已激活 —', FRAME_CTX);
   }
 
   function deactivatePicker() {
