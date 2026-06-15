@@ -645,6 +645,9 @@
       floater.dataset.selTop = fr.top;
       floater.dataset.selW = fr.width;
       floater.dataset.selH = fr.height;
+      console.log('[蓝湖] floater.dataset 已写入:', fr.left, fr.top, fr.width, fr.height);
+    } else {
+      console.log('[蓝湖] floater 为空，无法写入 dataset');
     }
 
     highlightEl(el);
