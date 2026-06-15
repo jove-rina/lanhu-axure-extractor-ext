@@ -132,12 +132,13 @@
         pickerActive = true;
         DOM.btnPicker.textContent = '⏹ 退出拾取';
         DOM.btnPicker.classList.add('active');
-        setStatus('🎯 拾取模式已激活 — 悬停查看，点击提取，ESC 退出', 'busy');
+        setStatus('🎯 拾取模式已激活 — 页面右下角将显示浮动面板', 'busy');
         DOM.previewBody.innerHTML = `<p class="hint" style="color:#2b8a3e;font-weight:600;">
           🎯 拾取模式已激活<br><br>
-          将鼠标移到页面上，<b>橙色高亮</b>的元素就是点击即可提取的区域。<br><br>
-          点击元素后结果会自动显示在这里。<br>
-          按 <kbd style="background:#373a40;padding:2px 8px;border-radius:3px;">ESC</kbd> 随时退出。
+          页面右下角将显示<b>浮动面板</b>。<br>
+          悬停元素查看橙色高亮，<b>点击</b>即可提取。<br>
+          浮动面板可直接 <b>复制</b> 或 <b>下载</b>。<br>
+          按 <kbd style="background:#373a40;padding:2px 8px;border-radius:3px;">ESC</kbd> 退出。
         </p>`;
         DOM.previewCount.textContent = '拾取模式';
 
