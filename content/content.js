@@ -258,6 +258,7 @@
 
         // 从高亮框 __lh_hh 的位置反查当前选中元素（不依赖任何变量）
         const hh = document.getElementById('__lh_hh');
+        console.log('[蓝湖] hh:', !!hh, 'display:', hh?.style?.display, 'rect:', hh?.getBoundingClientRect?.());
         if (!hh || hh.style.display === 'none') {
           setStatus('⚠️ 请先点击页面选择元素');
           return;
