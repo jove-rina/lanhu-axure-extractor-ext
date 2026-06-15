@@ -126,6 +126,11 @@
   let nextModuleId = 1;
   let activePickField = null; // { moduleId, entryIdx?, field: 'title'|'content' }
   let pickMode = false;
+  let expandedModuleId = null;
+  let selectedModuleIds = new Set();
+  let currentStorageKey = '';
+  let urlPollTimer = null;
+  let pickDebounceTimer = null;
 
   // ---- 浮动面板 ----
 
@@ -139,8 +144,12 @@
     <span style="color:#f08c00;font-weight:600;font-size:13px;">📄 文档构建</span>
     <button id="__lh_f_x" style="background:transparent;color:#909296;border:1px solid #373a40;border-radius:4px;padding:2px 10px;font-size:12px;cursor:pointer;">✕</button>
   </div>
-  <div id="__lh_f_tb" style="display:flex;gap:6px;padding:8px 14px;border-bottom:1px solid #25262b;">
-    <button id="__lh_f_add" style="background:#f08c00;color:#fff;border:none;border-radius:4px;padding:4px 12px;font-size:12px;cursor:pointer;">➕ 新增模块</button>
+  <div id="__lh_f_tb" style="display:flex;align-items:center;gap:6px;padding:8px 14px;border-bottom:1px solid #25262b;">
+    <button id="__lh_f_add" style="background:#f08c00;color:#fff;border:none;border-radius:4px;padding:4px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">➕ 新增模块</button>
+    <button id="__lh_f_reinit" title="拾取功能失灵时点击重新激活" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;white-space:nowrap;">🔄</button>
+    <span style="flex:1"></span>
+    <button id="__lh_f_selall" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:4px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">✅ 全选</button>
+    <button id="__lh_f_del_sel" style="background:#e03131;color:#fff;border:none;border-radius:4px;padding:4px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">🗑 删除选中</button>
   </div>
   <div id="__lh_f_list" style="flex:1;overflow-y:auto;padding:6px 10px;min-height:100px;"></div>
   <div id="__lh_f_ft" style="display:flex;gap:6px;padding:8px 14px;border-top:1px solid #25262b;">
@@ -154,21 +163,40 @@
 
   // ---- 模块管理 ----
 
-  const STORAGE_KEY = 'lh_builder_modules';
+  /** 从 URL hash 的查询参数提取 versionId + pageId，作为缓存 key */
+  function getStorageKey() {
+    try {
+      const hash = window.location.hash;
+      const qIdx = hash.indexOf('?');
+      if (qIdx >= 0) {
+        const params = new URLSearchParams(hash.slice(qIdx));
+        const vId = params.get('versionId');
+        const pId = params.get('pageId');
+        if (vId && pId) return `lh_${vId}_${pId}`;
+      }
+      const safe = hash.replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 80);
+      return `lh${safe ? '_' + safe : ''}`;
+    } catch { return 'lh'; }
+  }
 
   function saveModules() {
-    try { chrome.storage.local.set({ [STORAGE_KEY]: modules }); } catch {}
+    try { chrome.storage.local.set({ [currentStorageKey]: modules }); } catch {}
   }
 
   function loadModules() {
     try {
-      chrome.storage.local.get(STORAGE_KEY, (data) => {
-        if (data && data[STORAGE_KEY] && data[STORAGE_KEY].length > 0) {
-          modules = data[STORAGE_KEY];
+      const key = getStorageKey();
+      currentStorageKey = key;
+      chrome.storage.local.get(key, (data) => {
+        if (data && data[key] && data[key].length > 0) {
+          modules = data[key];
           nextModuleId = (modules.reduce((max, m) => Math.max(max, m.id), 0) || 0) + 1;
-          renderModuleList();
-          setStatus(`已加载 ${modules.length} 个模块`);
+        } else {
+          modules = [];
+          nextModuleId = 1;
         }
+        renderModuleList();
+        setStatus(modules.length ? `已加载 ${modules.length} 个模块` : '');
       });
     } catch {}
   }
@@ -176,13 +204,16 @@
   function addModule() {
     const m = { id: nextModuleId++, title: '', contents: [] };
     modules.push(m);
+    expandedModuleId = m.id;
     renderModuleList();
+    clampFloaterPosition();
     saveModules();
     setStatus(`模块 ${modules.length} 个`);
   }
 
   function removeModule(id) {
     modules = modules.filter(m => m.id !== id);
+    selectedModuleIds.delete(id);
     renderModuleList();
     saveModules();
     setStatus(`模块 ${modules.length} 个`);
@@ -204,10 +235,9 @@
     saveModules();
   }
 
-  // ---- 内容条目管理 ----
   function addContentEntry(moduleId) {
     const m = modules.find(x => x.id === moduleId);
-    if (m) { m.contents.push(''); renderModuleList(); saveModules(); }
+    if (m) { m.contents.push(''); renderModuleList(); clampFloaterPosition(); saveModules(); }
   }
 
   function removeContentEntry(moduleId, entryIdx) {
