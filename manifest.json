@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "蓝湖 Axure 需求提取器",
+  "version": "1.0.0",
+  "description": "从蓝湖 Axure 原型页面中提取产品需求表格和内容，一键导出 Markdown",
+  "permissions": [
+    "activeTab",
+    "downloads",
+    "storage",
+    "scripting",
+    "webNavigation"
+  ],
+  "host_permissions": [
+    "*://lanhuapp.com/*",
+    "*://*.lanhuapp.com/*"
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "提取 Axure 需求内容",
+    "default_icon": {
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://lanhuapp.com/*",
+        "*://*.lanhuapp.com/*"
+      ],
+      "js": ["content/content.js"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["lib/*"],
+      "matches": ["*://lanhuapp.com/*", "*://*.lanhuapp.com/*"]
+    }
+  ]
+}

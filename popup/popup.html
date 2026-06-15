@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>蓝湖 Axure 提取器</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>📋 Axure 需求提取器</h1>
+      <p class="subtitle">从蓝湖 Axure 原型中提取表格和需求内容 → Markdown</p>
+    </header>
+
+    <div class="status-bar" id="statusBar">
+      <span class="status-dot" id="statusDot"></span>
+      <span id="statusText">就绪</span>
+    </div>
+
+    <div class="tab-info" id="tabInfo">
+      <div class="label">当前页面：</div>
+      <div class="value" id="currentPage">-</div>
+    </div>
+
+    <div class="actions">
+      <button id="btnExtract" class="btn btn-primary">
+        🔍 提取需求内容
+      </button>
+      <button id="btnDownload" class="btn btn-secondary" disabled>
+        💾 下载 Markdown
+      </button>
+      <button id="btnCopy" class="btn btn-outline" disabled>
+        📋 复制到剪贴板
+      </button>
+    </div>
+
+    <div class="preview-area" id="previewArea">
+      <div class="preview-header">
+        <span class="preview-title">提取预览</span>
+        <span class="preview-count" id="previewCount">-</span>
+      </div>
+      <div class="preview-body" id="previewBody">
+        <p class="hint">点击「提取需求内容」开始</p>
+      </div>
+    </div>
+
+    <footer>
+      <span class="footer-info">v1.0 · 仅对 lanhuapp.com 生效</span>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
