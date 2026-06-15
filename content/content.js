@@ -1193,6 +1193,14 @@ strong{color:#e0e0e0}
       console.log('[蓝湖] mousedown → pickMode=false, 放行');
       return;
     }
+    // 导航/链接元素 → 放弃拾取，让页面正常导航
+    if (e.target.closest('a') || e.target.closest('[href]') ||
+        e.target.closest('[class*="nav"]') || e.target.closest('[class*="menu"]') ||
+        e.target.closest('[class*="sidebar"]') || e.target.closest('[class*="header"]')) {
+      console.log('[蓝湖] mousedown → 导航点击，放行');
+      if (pickMode) cancelPick();
+      return;
+    }
     console.log('[蓝湖] mousedown → 拾取模式拦截点击');
     hideHighlight();
     selectionLocked = false;
