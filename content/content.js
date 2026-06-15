@@ -163,7 +163,8 @@
 
   function createFloater() {
     if (document.getElementById('__lh_f')) {
-      console.log('[蓝湖] createFloater → 已存在，跳过');
+      console.log('[蓝湖] createFloater → 已存在，赋值后跳过');
+      floater = document.getElementById('__lh_f');
       return;
     }
     console.log('[蓝湖] createFloater → 创建浮动面板');
@@ -171,7 +172,9 @@
     d.innerHTML = HTML;
     document.body.appendChild(d.firstElementChild);
     floater = document.getElementById('__lh_f');
-    console.log('[蓝湖] createFloater → 完成, floater:', !!floater);
+    // 标记主实例（防止 Chrome 注入两遍 content script 导致重复绑定）
+    floater.dataset.owner = frameTag;
+    console.log('[蓝湖] createFloater → 完成, floater:', !!floater, 'owner:', frameTag);
 
     // 按钮
     document.getElementById('__lh_f_x')?.addEventListener('click', (e) => { e.stopPropagation(); deactivate(); });
@@ -293,6 +296,8 @@
         applyNavSelection();
       }
     });
+    // 标记事件已绑定（防 Chrome 注入两遍 content script 重复绑定）
+    floater.dataset.bound = '1';
   }
 
   function showFloater() { if (floater) floater.style.display = 'flex'; }
@@ -827,6 +832,11 @@
 
     if (FRAME_CTX === 'top') {
       createFloater();
+      // 检查是否已被其他实例绑定过事件
+      if (floater && floater.dataset.bound === '1') {
+        console.log('[蓝湖] 事件已被绑定，跳过');
+        return;
+      }
       showFloater();
       setupMessageListener();
     }
