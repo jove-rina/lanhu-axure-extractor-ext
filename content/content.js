@@ -247,6 +247,8 @@
       if (navIndex > 0) {
         navIndex--;
         applyNavSelection();
+      } else if (navPath.length === 0) {
+        setStatus('⚠️ 未选择任何元素，请先点击页面');
       } else {
         setStatus('⚠️ 已在最顶层，无法继续上移');
       }
@@ -257,6 +259,8 @@
       if (navIndex < navPath.length - 1) {
         navIndex++;
         applyNavSelection();
+      } else if (navPath.length === 0) {
+        setStatus('⚠️ 未选择任何元素，请先点击页面');
       } else {
         setStatus('⚠️ 已在最底层，无法继续下移');
       }
