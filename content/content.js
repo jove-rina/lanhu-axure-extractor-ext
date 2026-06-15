@@ -667,6 +667,7 @@
 
     if (result.markdown) {
       if (FRAME_CTX !== 'top') {
+        const fr = el.getBoundingClientRect();
         try {
           window.top.postMessage({
             type: '__lh_picker_result',
@@ -674,7 +675,11 @@
             sourceType: result.type,
             navIndex: navIndex,
             navPathLength: navPath.length,
-            breadcrumb: bc
+            breadcrumb: bc,
+            selLeft: fr.left,
+            selTop: fr.top,
+            selW: fr.width,
+            selH: fr.height
           }, '*');
         } catch {}
       } else { setContent(result.markdown, result.type); }
@@ -694,6 +699,13 @@
       if (upBtn) { upBtn.setAttribute('aria-disabled', !canUp); upBtn.style.opacity = canUp ? '1' : '0.4'; upBtn.style.color = canUp ? '#c1c2c5' : '#5c5f66'; upBtn.style.cursor = canUp ? 'pointer' : 'default'; }
       if (dnBtn) { dnBtn.setAttribute('aria-disabled', !canDn); dnBtn.style.opacity = canDn ? '1' : '0.4'; dnBtn.style.color = canDn ? '#c1c2c5' : '#5c5f66'; dnBtn.style.cursor = canDn ? 'pointer' : 'default'; }
       if (info) info.textContent = `⊞ ${data.breadcrumb || '(iframe)'}  (${(data.navIndex||0)+1}/${data.navPathLength})`;
+      // 保存坐标到 floater dataset（来自 iframe 的选择）
+      if (floater && data.selLeft != null) {
+        floater.dataset.selLeft = data.selLeft;
+        floater.dataset.selTop = data.selTop;
+        floater.dataset.selW = data.selW;
+        floater.dataset.selH = data.selH;
+      }
     } else {
       if (upBtn) { upBtn.setAttribute('aria-disabled', 'false'); upBtn.style.opacity = '1'; upBtn.style.color = '#c1c2c5'; upBtn.style.cursor = 'pointer'; }
       if (dnBtn) { dnBtn.setAttribute('aria-disabled', 'false'); dnBtn.style.opacity = '1'; dnBtn.style.color = '#c1c2c5'; dnBtn.style.cursor = 'pointer'; }
