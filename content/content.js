@@ -430,6 +430,19 @@
       case 'diagnose':
         sendResponse({ status: 'ok', data: getDiagnostics() });
         break;
+
+      case 'diagnose-me':
+        sendResponse({
+          status: 'ok',
+          data: {
+            isAxure: isAxureContent(document),
+            title: document.title,
+            tableCount: document.querySelectorAll('table').length,
+            bodySize: document.body?.innerText?.length || 0,
+            frame: FRAME_CTX,
+          },
+        });
+        break;
     }
 
     return true;

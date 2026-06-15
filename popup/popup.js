@@ -76,7 +76,7 @@
   async function extract() {
     DOM.btnExtract.disabled = true;
     DOM.btnExtract.textContent = '⏳ 提取中...';
-    setStatus('正在提取内容...', 'busy');
+    setStatus('正在提取所有 frame 中的内容...', 'busy');
     DOM.previewBody.innerHTML = '<p class="hint">正在扫描页面中的表格和需求内容...</p>';
     DOM.previewCount.textContent = '扫描中...';
     DOM.previewMeta.textContent = '';
@@ -92,73 +92,50 @@
       }
       DOM.currentPage.textContent = tab.title || tab.url;
 
-      // 发送提取请求
-      const response = await sendToContent('extract-axure');
-
-      if (!response || response.status !== 'ok' || !response.data) {
-        showError('提取失败：内容脚本返回异常');
+      // 先 ping 内容脚本
+      try {
+        await sendToContent('ping');
+      } catch (e) {
+        showError('内容脚本未加载，请刷新页面后重试');
         resetButtons();
         return;
       }
 
-      const data = response.data;
-      const pages = data.pages || [];
-      const md = data.combinedMarkdown || '';
-      const iframesFound = data.iframesFound || [];
-
-      // 检查是否有实际内容
-      let hasContent = false;
-      pages.forEach(p => {
-        if (p.sections && p.sections.length > 0) hasContent = true;
+      // 走 background 协调所有 frame 的提取
+      const response = await chrome.runtime.sendMessage({
+        action: 'extract',
+        tabId: tab.id,
       });
 
-      if (!hasContent) {
-        // 如果有 iframe 但没提取到内容
-        const inaccessibleCount = iframesFound.filter(f => !f.accessible).length;
+      if (!response || response.error) {
+        showError('提取失败: ' + (response?.error || '无响应'));
+        resetButtons();
+        return;
+      }
 
-        let msg = '未在当前页面检测到表格或需求内容。';
-        if (iframesFound.length > 0) {
-          msg += `<br><br>发现 ${iframesFound.length} 个 iframe：<br>`;
-          iframesFound.forEach(f => {
-            const status = f.accessible ? '✅ 可访问' : '❌ 无法访问（跨域）';
-            msg += `• ${f.src ? f.src.substring(0, 80) : '(inline)'} — ${status}<br>`;
-          });
-          if (inaccessibleCount > 0) {
-            msg += `<br>💡 有 ${inaccessibleCount} 个 iframe 无法直接访问，可能是跨域限制。<br>`;
-            msg += `试试：点击 iframe 内部区域，让它获得焦点，再重新提取。`;
-          }
-        } else if (data.isAxureContent) {
-          msg = '页面标记为 Axure 内容，但未提取到结构化表格/文本。<br>可以试试点击「诊断」查看详情。';
-        }
+      const md = response.combinedMarkdown || '';
+
+      if (!md || md.length < 20) {
         setStatus('⚠️ 未检测到内容', 'error');
+        let msg = '未在当前页面检测到表格或需求内容。';
+        msg += `<br><br>扫描了 ${response.framesScanned || '?'} 个 frame，${response.framesResponded || 0} 个有响应。`;
+        msg += `<br>试试点击「🔬 诊断」查看详情。`;
         DOM.previewBody.innerHTML = `<p class="empty-result">${msg}</p>`;
         DOM.btnDiagnose.disabled = false;
         resetButtons();
         return;
       }
 
-      // 统计
-      let tableCount = 0;
-      let textCount = 0;
-      pages.forEach(p => {
-        (p.sections || []).forEach(s => {
-          if (s.type === 'table') tableCount++;
-          else if (s.type === 'text' || s.type === 'heading') textCount++;
-        });
-      });
-
       lastMarkdown = md;
 
-      // 更新 UI
-      DOM.previewCount.textContent = `${pages.length} 个页面 · ${tableCount} 个表格 · ${textCount} 段文本`;
+      // 统计
+      const tableCount = response.tableCount || 0;
+      const textCount = response.textCount || 0;
 
-      // 显示提取来源
-      const sourceInfo = pages.map(p => {
-        const label = p.frame === 'top' ? '主页面' : `iframe #${p.frameIndex}`;
-        const count = (p.sections || []).length;
-        return `${label}: ${count} 项`;
-      }).join(' · ');
-      DOM.previewMeta.textContent = `来源：${sourceInfo}`;
+      DOM.previewCount.textContent =
+        `${response.framesResponded}/${response.framesScanned} 个 frame · ${tableCount} 个表格 · ${textCount} 段文本`;
+
+      DOM.previewMeta.textContent = `扫描 ${response.framesScanned} 个 frame，${response.framesResponded} 个有响应`;
 
       // 预览前 30 行
       const previewLines = md.split('\n').slice(0, 30).join('\n');
@@ -225,56 +202,54 @@
     DOM.previewBody.innerHTML = '<p class="hint">正在收集页面诊断信息...</p>';
 
     try {
-      const response = await sendToContent('diagnose');
+      const tab = await getCurrentTab();
 
-      if (!response || response.status !== 'ok') {
-        showError('诊断失败');
+      const response = await chrome.runtime.sendMessage({
+        action: 'diagnose',
+        tabId: tab.id,
+      });
+
+      if (!response || !response.success) {
+        showError('诊断失败: ' + (response?.error || '无响应'));
         return;
       }
 
-      const d = response.data;
+      const frames = response.frames || [];
 
       let html = `<div style="font-size:12px;line-height:1.8;">`;
       html += `<b>🔬 页面诊断信息</b><br><br>`;
-      html += `• Frame: <code>${d.frame}</code><br>`;
-      html += `• 页面: ${escapeHtml(d.title || '-')}<br>`;
-      html += `• URL: <code style="word-break:break-all;">${escapeHtml(d.url || '-')}</code><br>`;
-      html += `• Axure 标记: ${d.isAxure ? '✅ 是' : '❌ 否'}<br>`;
+      html += `共 ${frames.length} 个 frame<br><br>`;
 
-      if (d.frame === 'top') {
-        html += `• 蓝湖 Axure 页: ${d.isLanhuAxurePage ? '✅ 是' : '❌ 否'}<br>`;
+      frames.forEach((f, i) => {
+        const icon = f.accessible ? '✅' : '❌';
+        const scriptStatus = f.hasScript ? '有内容脚本' : '无内容脚本';
+        const axureStatus = f.isAxure ? '✅ Axure内容' : '❌ 非Axure';
+        html += `<b>${icon} Frame #${f.frameId}</b> (父 frame: ${f.parentFrameId})<br>`;
+        html += `&nbsp;&nbsp;URL: <code style="word-break:break-all;">${escapeHtml(f.url || '-')}</code><br>`;
+        html += `&nbsp;&nbsp;状态: ${f.accessible ? '可访问' : '无法访问'} · ${scriptStatus} · ${f.hasScript ? axureStatus : ''}<br>`;
+        if (f.hasScript) {
+          html += `&nbsp;&nbsp;页面: ${escapeHtml(f.title || '-')} · 文字 ${(f.bodySize/1000).toFixed(1)}KB · 表格 ${f.tableCount} 个<br>`;
+        }
+        html += `<br>`;
+      });
+
+      // 解释说明
+      const accessibleCount = frames.filter(f => f.accessible).length;
+      const inaccessibleCount = frames.filter(f => !f.accessible).length;
+      const axureFrames = frames.filter(f => f.isAxure);
+
+      if (axureFrames.length === 0 && accessibleCount > 0) {
+        html += `<i>💡 ${accessibleCount} 个可访问 frame 均未标记为 Axure 内容。</i><br>`;
       }
-
-      html += `• 页面文字量: ${(d.bodySize / 1000).toFixed(1)} KB<br>`;
-      html += `• HTML 表格数: ${d.tableCount}<br>`;
-      html += `<br>`;
-
-      // iframe 信息
-      if (d.iframes && d.iframes.length > 0) {
-        html += `<b>📦 iframe 列表 (${d.iframes.length} 个)</b><br>`;
-        d.iframes.forEach((f, i) => {
-          const icon = f.accessible ? '✅' : '❌';
-          const status = f.accessible ? `可访问 (${f.readyState})` : '无法访问（跨域）';
-          const dimensions = f.width && f.height ? `(${f.width}x${f.height})` : '';
-          html += `<br>${icon} iframe #${i} ${dimensions}<br>`;
-          html += `&nbsp;&nbsp;src: <code style="word-break:break-all;">${escapeHtml(f.src || '(inline)')}</code><br>`;
-          html += `&nbsp;&nbsp;状态: ${status}<br>`;
-          if (f.title || f.id) {
-            html += `&nbsp;&nbsp;title: ${escapeHtml(f.title)} / id: ${escapeHtml(f.id)}<br>`;
-          }
-        });
-      } else {
-        html += `<b>📦 iframe</b>: 无<br>`;
+      if (inaccessibleCount > 0) {
+        html += `<i>💡 ${inaccessibleCount} 个 frame 无法访问（跨域限制）。<br>`;
+        html += `内容脚本已通过 all_frames 注入，background 已用 webNavigation 逐帧发送提取指令。</i><br>`;
       }
-
-      html += `<br>`;
-      html += `<i>💡 如果 iframe 标记为 ❌，说明是跨域 iframe，扩展无法直接访问。<br>`;
-      html += `可尝试点击 iframe 内部区域后，刷新页面再提取。</i>`;
 
       html += `</div>`;
 
       DOM.previewBody.innerHTML = html;
-      DOM.previewCount.textContent = '诊断';
+      DOM.previewCount.textContent = `${frames.length} 个 frame`;
       setStatus('✅ 诊断完成', 'ready');
 
     } catch (err) {
