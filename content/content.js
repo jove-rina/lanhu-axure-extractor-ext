@@ -91,7 +91,13 @@
     groups.forEach((cells, container) => {
       if (cells.length < 4) return;
       const table = buildTableFromCells(cells);
-      if (table) results.push(table);
+      if (table) {
+        table.type = 'table';
+        table.heading = extractTableHeading(container);
+        table.markdown = `### ${table.heading}\n\n${buildMdTable(table.rowData, table.cols)}`;
+        table.text = table.rowData.map(r => r.join(' | ')).join('; ').substring(0, 200);
+        results.push(table);
+      }
     });
 
     return results;
