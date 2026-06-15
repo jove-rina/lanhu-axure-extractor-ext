@@ -132,13 +132,12 @@
         pickerActive = true;
         DOM.btnPicker.textContent = '⏹ 退出拾取';
         DOM.btnPicker.classList.add('active');
-        setStatus('🎯 框选模式已激活 — 拖拽选择区域进行提取', 'busy');
+        setStatus('🎯 拾取模式已激活 — 点击元素或拖拽框选', 'busy');
         DOM.previewBody.innerHTML = `<p class="hint" style="color:#2b8a3e;font-weight:600;">
-          🎯 框选模式已激活<br><br>
-          页面右下角将显示浮动面板。<br>
-          在页面上<b>按住鼠标拖拽</b>，框选要提取的区域。<br>
-          松开鼠标即可提取表格或文本。<br>
-          浮动面板可直接 <b>复制</b> 或 <b>下载</b>。<br>
+          🎯 拾取模式已激活<br><br>
+          <b>点击</b>元素 → 直接提取该元素<br>
+          <b>拖拽框选</b> → 提取区域内所有内容<br><br>
+          结果在右下角浮动面板显示。<br>
           按 <kbd style="background:#373a40;padding:2px 8px;border-radius:3px;">ESC</kbd> 退出。
         </p>`;
         DOM.previewCount.textContent = '拾取模式';

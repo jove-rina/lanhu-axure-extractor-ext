@@ -248,38 +248,71 @@
     selEndX = e.clientX;
     selEndY = e.clientY;
 
+    const dragDist = Math.abs(selEndX - selStartX) + Math.abs(selEndY - selStartY);
     const area = Math.abs((selEndX - selStartX) * (selEndY - selStartY));
-    if (area < 100) {
-      setStatus('选中区域太小（至少 10x10 像素），请重新框选');
-      removeRubber();
+    removeRubber();
+
+    // ---- 定点点击（拖动距离 < 15px） ----
+    if (dragDist < 15) {
+      const el = document.elementFromPoint(selEndX, selEndY);
+      if (!el || el.id?.startsWith('__lh_')) {
+        setStatus('⚠️ 未选中有效元素');
+        return;
+      }
+
+      let md = '', type = 'text';
+
+      // 尝试从元素或其父容器提取表格
+      const candidates = [el, el.closest('.ax_default'), el.parentElement].filter(Boolean);
+      for (const scope of candidates) {
+        for (const sel of ['.ax_default.table_cell', '.ax_default._形状1']) {
+          const cells = scope.querySelectorAll(sel);
+          if (cells.length >= 4) {
+            const table = buildTable(cells);
+            if (table) { md = mdTable(table); type = 'table'; break; }
+          }
+        }
+        if (md) break;
+      }
+
+      if (!md) {
+        md = axureText(el) || el.innerText.trim();
+        if (!md) { setStatus('⚠️ 该元素无内容'); return; }
+        type = 'text';
+      }
+
+      // 显示/发送结果
+      if (FRAME_CTX !== 'top') {
+        try {
+          window.top.postMessage({ type: '__lh_picker_result', markdown: md, sourceType: type }, '*');
+          setStatus('✅ 已发送到顶层');
+        } catch { setStatus('⚠️ 发送失败'); }
+      } else {
+        setContent(md, type);
+      }
       return;
     }
 
-    // 提取内容
-    const result = extractFromRect(selStartX, selStartY, selEndX, selEndY);
-    removeRubber();
+    // ---- 框选区域（拖动距离 >= 15px） ----
+    if (area < 100) {
+      setStatus('框选区域太小，请重新选择');
+      return;
+    }
 
+    const result = extractFromRect(selStartX, selStartY, selEndX, selEndY);
     if (!result.markdown) {
       setStatus('⚠️ 框选区域未提取到内容');
       return;
     }
 
-    // 如果是 iframe，把提取结果文字发到顶层 frame 显示
     if (FRAME_CTX !== 'top') {
       try {
-        window.top.postMessage({
-          type: '__lh_picker_result',
-          markdown: result.markdown,
-          sourceType: result.type,
-        }, '*');
+        window.top.postMessage({ type: '__lh_picker_result', markdown: result.markdown, sourceType: result.type }, '*');
         setStatus('✅ 结果已发送到顶层页面');
-      } catch {
-        setStatus('⚠️ 无法发送到顶层页面');
-      }
+      } catch { setStatus('⚠️ 无法发送到顶层页面'); }
       return;
     }
 
-    // 顶层 frame：直接显示
     setContent(result.markdown, result.type);
   }
 
