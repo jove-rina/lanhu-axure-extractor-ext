@@ -35,7 +35,7 @@
     const items = Array.from(elements).map(el => {
       const r = el.getBoundingClientRect();
       return { text: axureText(el), x: Math.round(r.left), y: Math.round(r.top) };
-    }).filter(c => c.text.length > 0);
+    }).filter(c => !isNaN(c.x) && !isNaN(c.y)); // 只过滤无效坐标，保留空文本
 
     if (items.length < 4) return null;
     const rows = [];
@@ -76,8 +76,13 @@
     all.forEach(el => {
       const r = el.getBoundingClientRect();
       if (r.left >= left && r.top >= top && r.right <= right && r.bottom <= bottom) {
-        const t = axureText(el);
-        if (t) inRect.push(el);
+        // table_cell/_形状1 保留空单元格，其他组件必须有文本才保留
+        if (el.classList.contains('table_cell') || el.classList.contains('_形状1')) {
+          inRect.push(el);
+        } else {
+          const t = axureText(el);
+          if (t) inRect.push(el);
+        }
       }
     });
 
