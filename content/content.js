@@ -250,41 +250,36 @@
 
     // 容器导航：父级 / 子级（事件代理方式）
     floater.addEventListener('click', (e) => {
-      console.log('[蓝湖] floater click 触发, target:', e.target.id || e.target.tagName);
-      const target = e.target;
-      if (target.id === '__lh_f_up' || target.id === '__lh_f_dn') {
+      // 测试：不管什么点击都打印
+      console.log('[蓝湖] CLICK', e.target.id);
+      if (e.target.id === '__lh_f_up' || e.target.id === '__lh_f_dn') {
         e.stopPropagation();
-        const isUp = target.id === '__lh_f_up';
-        console.log('[蓝湖]', isUp ? '↑父级' : '↓子级', '按钮点击');
+        const isUp = e.target.id === '__lh_f_up';
+        console.log('[蓝湖] NAV', isUp ? 'UP' : 'DN');
 
-        // 从高亮框 __lh_hh 的位置反查当前选中元素（不依赖任何变量）
-        let current = null;
-        try {
-          const hh = document.getElementById('__lh_hh');
-          console.log('[蓝湖] hh存在:', !!hh, '显示:', hh?.style?.display);
-          if (hh && hh.style.display !== 'none') {
-            const r = hh.getBoundingClientRect();
-            current = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-          }
-        } catch (ex) {
-          console.log('[蓝湖] hh错误:', ex.message);
-        }
-        if (!current) {
+        // 直接测试 document.getElementById
+        console.log('[蓝湖] TEST getElementById __lh_hh:', typeof document.getElementById);
+        const hh = document.getElementById('__lh_hh');
+        console.log('[蓝湖] TEST hh result:', !!hh);
+
+        if (!hh || hh.style.display === 'none') {
           setStatus('⚠️ 请先点击页面选择元素');
           return;
         }
+
+        const r = hh.getBoundingClientRect();
+        const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+        const current = document.elementFromPoint(cx, cy);
         if (!current) { setStatus('⚠️ 无法定位选中元素'); return; }
 
         let next = null;
         if (isUp) {
-          // 父级 → parentElement
           next = current.parentElement;
           if (!next || next === document.body || next === document.documentElement) {
             setStatus('⚠️ 已在最顶层');
             return;
           }
         } else {
-          // 子级 → 从 navPath 找下一级 或 取第一个非 __lh_ 子元素
           const curIdx = navPath.indexOf(current);
           if (curIdx >= 0 && curIdx < navPath.length - 1) {
             next = navPath[curIdx + 1];
@@ -297,12 +292,11 @@
           if (!next) { setStatus('⚠️ 已到最底层'); return; }
         }
 
-        // 保存到所有引用，然后导航
+        console.log('[蓝湖] NAV target:', next.tagName);
         currentSelectedEl = next;
         if (floater) floater._selected = next;
         navPath = buildPath(next);
         navIndex = Math.max(1, Math.min(navPath.indexOf(next), Math.floor(navPath.length / 2), navPath.length - 2));
-        console.log('[蓝湖]', isUp ? '↑父级' : '↓子级', '→', next.tagName, 'navPath:', navPath.length);
         applyNavSelection();
       }
     });
