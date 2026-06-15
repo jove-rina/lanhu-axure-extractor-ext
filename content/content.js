@@ -257,15 +257,21 @@
         console.log('[蓝湖]', isUp ? '↑父级' : '↓子级', '按钮点击');
 
         // 从高亮框 __lh_hh 的位置反查当前选中元素（不依赖任何变量）
-        const hh = document.getElementById('__lh_hh');
-        console.log('[蓝湖] hh:', !!hh, 'display:', hh?.style?.display, 'rect:', hh?.getBoundingClientRect?.());
-        if (!hh || hh.style.display === 'none') {
+        let current = null;
+        try {
+          const hh = document.getElementById('__lh_hh');
+          console.log('[蓝湖] hh存在:', !!hh, '显示:', hh?.style?.display);
+          if (hh && hh.style.display !== 'none') {
+            const r = hh.getBoundingClientRect();
+            current = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+          }
+        } catch (ex) {
+          console.log('[蓝湖] hh错误:', ex.message);
+        }
+        if (!current) {
           setStatus('⚠️ 请先点击页面选择元素');
           return;
         }
-        const r = hh.getBoundingClientRect();
-        const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-        const current = document.elementFromPoint(cx, cy);
         if (!current) { setStatus('⚠️ 无法定位选中元素'); return; }
 
         let next = null;
