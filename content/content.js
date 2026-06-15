@@ -965,7 +965,7 @@ strong{color:#e0e0e0}
   function setupMessageListener() {
     window.addEventListener('message', (e) => {
       if (e.data && e.data.type === '__lh_picker_result' && e.data.markdown) {
-        // 若处于拾取模式，将 iframe 结果填入当前字段
+        console.log('[蓝湖] msg 收到, pickMode:', pickMode, 'activePickField:', activePickField?.field);
         if (pickMode && activePickField) {
           finishPick(e.data.markdown);
         }
