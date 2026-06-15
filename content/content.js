@@ -250,6 +250,7 @@
 
     // 容器导航：父级 / 子级（事件代理方式）
     floater.addEventListener('click', (e) => {
+      console.log('[蓝湖] floater click 触发, target:', e.target.id || e.target.tagName);
       const target = e.target;
       if (target.id === '__lh_f_up' || target.id === '__lh_f_dn') {
         e.stopPropagation();
