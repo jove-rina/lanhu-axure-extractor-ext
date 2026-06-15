@@ -147,8 +147,8 @@
     <button data-sc="multi" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">➕ 多选</button>
   </div>
   <div id="__lh_f_nav" style="display:flex;align-items:center;gap:6px;padding:3px 12px 5px;border-top:1px solid #25262b;font-size:11px;color:#909296;">
-    <button id="__lh_f_up" disabled style="background:#373a40;color:#5c5f66;border:none;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;opacity:0.4;">↑ 上一级</button>
-    <button id="__lh_f_dn" disabled style="background:#373a40;color:#5c5f66;border:none;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;opacity:0.4;">↓ 下一级</button>
+    <button id="__lh_f_up" aria-disabled="true" style="background:#373a40;color:#5c5f66;border:none;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;opacity:0.4;">↑ 父级</button>
+    <button id="__lh_f_dn" aria-disabled="true" style="background:#373a40;color:#5c5f66;border:none;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;opacity:0.4;">↓ 子级</button>
     <span id="__lh_f_nav_info" style="font-size:10px;color:#5c5f66;flex:1;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
   </div>
   <div style="padding:6px 14px;background:#25262b;border-top:1px solid #373a40;font-size:11px;color:#5c5f66;
@@ -580,14 +580,16 @@
     const canUp = navIndex > 0;
     const canDn = navIndex < navPath.length - 1;
     if (upBtn) {
-      upBtn.disabled = !canUp;
+      upBtn.setAttribute('aria-disabled', !canUp);
       upBtn.style.opacity = canUp ? '1' : '0.4';
       upBtn.style.color = canUp ? '#c1c2c5' : '#5c5f66';
+      upBtn.style.cursor = canUp ? 'pointer' : 'default';
     }
     if (dnBtn) {
-      dnBtn.disabled = !canDn;
+      dnBtn.setAttribute('aria-disabled', !canDn);
       dnBtn.style.opacity = canDn ? '1' : '0.4';
       dnBtn.style.color = canDn ? '#c1c2c5' : '#5c5f66';
+      dnBtn.style.cursor = canDn ? 'pointer' : 'default';
     }
 
     const el = navPath[navIndex];
@@ -633,13 +635,12 @@
     if (data && data.navPathLength) {
       const canUp = data.navIndex > 0;
       const canDn = data.navIndex < data.navPathLength - 1;
-      if (upBtn) { upBtn.disabled = !canUp; upBtn.style.opacity = canUp ? '1' : '0.4'; upBtn.style.color = canUp ? '#c1c2c5' : '#5c5f66'; }
-      if (dnBtn) { dnBtn.disabled = !canDn; dnBtn.style.opacity = canDn ? '1' : '0.4'; dnBtn.style.color = canDn ? '#c1c2c5' : '#5c5f66'; }
+      if (upBtn) { upBtn.setAttribute('aria-disabled', !canUp); upBtn.style.opacity = canUp ? '1' : '0.4'; upBtn.style.color = canUp ? '#c1c2c5' : '#5c5f66'; upBtn.style.cursor = canUp ? 'pointer' : 'default'; }
+      if (dnBtn) { dnBtn.setAttribute('aria-disabled', !canDn); dnBtn.style.opacity = canDn ? '1' : '0.4'; dnBtn.style.color = canDn ? '#c1c2c5' : '#5c5f66'; dnBtn.style.cursor = canDn ? 'pointer' : 'default'; }
       if (info) info.textContent = `⊞ ${data.breadcrumb || '(iframe)'}  (${(data.navIndex||0)+1}/${data.navPathLength})`;
     } else {
-      // 没有导航信息时，简单启用按钮
-      if (upBtn) { upBtn.disabled = false; upBtn.style.opacity = '1'; upBtn.style.color = '#c1c2c5'; }
-      if (dnBtn) { dnBtn.disabled = false; dnBtn.style.opacity = '1'; dnBtn.style.color = '#c1c2c5'; }
+      if (upBtn) { upBtn.setAttribute('aria-disabled', 'false'); upBtn.style.opacity = '1'; upBtn.style.color = '#c1c2c5'; upBtn.style.cursor = 'pointer'; }
+      if (dnBtn) { dnBtn.setAttribute('aria-disabled', 'false'); dnBtn.style.opacity = '1'; dnBtn.style.color = '#c1c2c5'; dnBtn.style.cursor = 'pointer'; }
       if (info) info.textContent = '';
     }
   }
