@@ -145,9 +145,14 @@
     <button data-sc="container" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">🎯 容器</button>
     <button data-sc="multi" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">➕ 多选</button>
   </div>
+  <div id="__lh_f_nav" style="display:flex;align-items:center;gap:6px;padding:3px 12px 5px;border-top:1px solid #25262b;font-size:11px;color:#909296;">
+    <button id="__lh_f_up" disabled style="background:#373a40;color:#5c5f66;border:none;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;opacity:0.4;">↑ 上一级</button>
+    <button id="__lh_f_dn" disabled style="background:#373a40;color:#5c5f66;border:none;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer;opacity:0.4;">↓ 下一级</button>
+    <span id="__lh_f_nav_info" style="font-size:10px;color:#5c5f66;flex:1;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+  </div>
   <div style="padding:6px 14px;background:#25262b;border-top:1px solid #373a40;font-size:11px;color:#5c5f66;
     display:flex;justify-content:space-between;">
-    <span id="__lh_f_s">点击元素精准拾取，或拖拽框选区域提取</span>
+    <span id="__lh_f_s">点击选择容器 · 工具栏 ↑↓ 导航 · 拖拽框选提取</span>
     <span>ESC 退出</span>
   </div>
 </div>`;
@@ -233,6 +238,22 @@
         document.addEventListener('mouseup', up);
       });
     }
+
+    // 容器导航：上一级 / 下一级
+    document.getElementById('__lh_f_up')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (navIndex > 0) {
+        navIndex--;
+        applyNavSelection();
+      }
+    });
+    document.getElementById('__lh_f_dn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (navIndex < navPath.length - 1) {
+        navIndex++;
+        applyNavSelection();
+      }
+    });
   }
 
   function showFloater() { if (floater) floater.style.display = 'flex'; }
@@ -421,8 +442,9 @@
   let showRendered = false;
   let lastRawMd = '';
 
-  // ---- 点击升级 (Click Escalation) ----
-  let escalation = { target: null, time: 0, current: null };
+  // ---- 容器导航路径（替代点击升级） ----
+  let navPath = [];       // 从选中元素到 body 的 DOM 路径（根下标 0，最深下标最大）
+  let navIndex = -1;      // 当前选中的元素在路径中的下标
 
   // ---- 追加模式 ----
   let appendMode = false;
@@ -532,6 +554,61 @@
     else { containerRects = [rect]; }
   }
 
+  // ---- 容器导航路径构建 ----
+
+  /** 从点击的元素向上构建 DOM 路径（至 body），排除 __lh_ 元素 */
+  function buildPath(el) {
+    const path = [];
+    let cur = el;
+    for (let i = 0; cur && i < 15; i++) {
+      if (cur.id?.startsWith?.('__lh_')) { cur = cur.parentElement; continue; }
+      path.unshift(cur);
+      if (cur === document.body || cur === document.documentElement) break;
+      cur = cur.parentElement;
+    }
+    return path;
+  }
+
+  /** 根据当前 navIndex 应用选择：高亮 + 提取 + 更新按钮状态 */
+  function applyNavSelection() {
+    const el = navPath[navIndex];
+    if (!el) return;
+
+    highlightEl(el);
+    trackContainerRect(el);
+
+    const bc = getBreadcrumb(el);
+    const upBtn = document.getElementById('__lh_f_up');
+    const dnBtn = document.getElementById('__lh_f_dn');
+    const info = document.getElementById('__lh_f_nav_info');
+
+    // 更新按钮状态
+    if (upBtn) {
+      upBtn.disabled = navIndex <= 0;
+      upBtn.style.opacity = navIndex <= 0 ? '0.4' : '1';
+      upBtn.style.color = navIndex <= 0 ? '#5c5f66' : '#c1c2c5';
+    }
+    if (dnBtn) {
+      dnBtn.disabled = navIndex >= navPath.length - 1;
+      dnBtn.style.opacity = navIndex >= navPath.length - 1 ? '0.4' : '1';
+      dnBtn.style.color = navIndex >= navPath.length - 1 ? '#5c5f66' : '#c1c2c5';
+    }
+    if (info) {
+      info.textContent = `⊞ ${bc}  (${navIndex + 1}/${navPath.length})`;
+    }
+
+    const result = extractFromEl(el);
+    setStatus(`🎯 ${bc} (${navIndex + 1}/${navPath.length})`);
+
+    if (result.markdown) {
+      if (FRAME_CTX !== 'top') {
+        try { window.top.postMessage({ type: '__lh_picker_result', markdown: result.markdown, sourceType: result.type }, '*'); } catch {}
+      } else { setContent(result.markdown, result.type); }
+    } else {
+      setStatus('⚠️ 容器无内容');
+    }
+  }
+
   // ---- 事件 ----
   function onMouseDown(e) {
     if (e.button !== 0) return;
@@ -574,7 +651,7 @@
     const area = Math.abs((selEndX - selStartX) * (selEndY - selStartY));
     removeRubber();
 
-    // ---- 智能定位点击（拖动距离 < 15px） ----
+    // ---- 点击元素：构建路径 + 智能定位起始容器 ----
     if (dragDist < 15) {
       const el = document.elementFromPoint(selEndX, selEndY);
       if (!el || el.id?.startsWith('__lh_')) {
@@ -583,46 +660,23 @@
         return;
       }
 
-      const now = Date.now();
-      const isRecent = (now - escalation.time) < 2500;
-
-      // 点击升级：同一位置附近再点 → 往上移一级
-      if (isRecent && escalation.current && escalation.current !== document.body) {
-        const parent = escalation.current.parentElement;
-        if (parent && parent !== document.body && parent !== document.documentElement) {
-          escalation.current = parent;
-          escalation.time = now;
-          const result = extractFromEl(parent);
-          const bc = getBreadcrumb(parent);
-          setStatus(`🔼 升级至容器 (${bc})`);
-          if (result.markdown) {
-            if (FRAME_CTX !== 'top') {
-              try { window.top.postMessage({ type: '__lh_picker_result', markdown: result.markdown, sourceType: result.type }, '*'); } catch {}
-            } else { setContent(result.markdown, result.type); trackContainerRect(escalation.current); }
-          } else { setStatus('⚠️ 容器无内容'); }
-          return;
-        }
-        setStatus('⚠️ 已到最顶层容器');
+      // 构建完整 DOM 路径
+      navPath = buildPath(el);
+      if (navPath.length < 2) {
+        setStatus('⚠️ 无法构建元素路径');
         return;
       }
 
-      // 首次点击：智能定位容器
+      // 智能定位起始容器：优先从 findContainer 的返回在路径中找到位置
       const { el: container } = findContainer(el);
-      escalation.target = el;
-      escalation.current = container;
-      escalation.time = now;
-
-      const result = extractFromEl(container);
-      const bc = getBreadcrumb(container);
-      setStatus(`🎯 ${container === el ? '元素' : `容器 (${bc})`} — 再点同位置升级`);
-
-      if (result.markdown) {
-        if (FRAME_CTX !== 'top') {
-          try { window.top.postMessage({ type: '__lh_picker_result', markdown: result.markdown, sourceType: result.type }, '*'); } catch {}
-        } else { setContent(result.markdown, result.type); }
-      } else {
-        setStatus('⚠️ 所选容器无内容');
+      let startIdx = navPath.indexOf(container);
+      if (startIdx < 1) {
+        // 如果 container 不在路径中（太靠上），从最深处往上一级
+        startIdx = navPath.length - 2;
       }
+      navIndex = Math.max(1, Math.min(startIdx, navPath.length - 1));
+
+      applyNavSelection();
       return;
     }
 
@@ -702,6 +756,10 @@
     removeHoverHighlight();
     removeFloater();
     isDragging = false;
+
+    // 清理导航状态
+    navPath = [];
+    navIndex = -1;
 
     console.log('[蓝湖提取器] 已退出');
   }

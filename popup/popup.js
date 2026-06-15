@@ -132,18 +132,18 @@
         pickerActive = true;
         DOM.btnPicker.textContent = '⏹ 退出拾取';
         DOM.btnPicker.classList.add('active');
-        setStatus('🎯 拾取模式已激活 — 悬停预览 · 点击定位 · 同处再点升级', 'busy');
-        DOM.previewBody.innerHTML = `<p class="hint" style="color:#2b8a3e;font-weight:600;">
-          🎯 拾取模式已激活<br><br>
-          <b>🖱 悬停预览</b> → 橙色高亮提示即将选中的范围<br>
-          <b>👆 点击</b> → 智能定位容器，一步到位<br>
-          <b>🔼 同处再点</b> → 升级到上一级容器<br>
-          <b>📎 追加按钮</b> → 开启后多选累加内容<br>
-          <b>👁 预览/源码</b> → 切换渲染视图<br>
-          <b>📷 截图</b> → 四种模式：🖥全屏 · 📄整页 · 🎯容器 · ➕多选<br><br>
-          结果在右下角浮动面板显示。<br>
-          按 <kbd style="background:#373a40;padding:2px 8px;border-radius:3px;">ESC</kbd> 退出。
-        </p>`;
+        setStatus('🎯 拾取模式已激活 — 点击选择 · 工具栏 ↑↓ 导航', 'busy');
+          DOM.previewBody.innerHTML = `<p class="hint" style="color:#2b8a3e;font-weight:600;">
+            🎯 拾取模式已激活<br><br>
+            <b>🖱 点击元素</b> → 智能定位容器，自动提取内容<br>
+            <b>↕ 工具栏 ↑↓</b> → 点击"上一级/下一级"切换容器层级<br>
+            <b>🔲 拖拽框选</b> → 画出一个矩形区域，自动识别表格<br>
+            <b>📎 追加按钮</b> → 开启后多选累加内容<br>
+            <b>👁 预览/源码</b> → 切换渲染视图<br>
+            <b>📷 截图</b> → 四种模式：🖥全屏 · 📄整页 · 🎯容器 · ➕多选<br><br>
+            结果在右下角浮动面板显示。<br>
+            按 <kbd style="background:#373a40;padding:2px 8px;border-radius:3px;">ESC</kbd> 退出。
+          </p>`;
         DOM.previewCount.textContent = '拾取模式';
 
         // 开始监听拾取结果
@@ -303,9 +303,9 @@
           setStatus('🎯 拾取模式已激活', 'busy');
           DOM.previewBody.innerHTML = `<p class="hint" style="color:#2b8a3e;font-weight:600;">
             🎯 拾取模式已在运行中（上次打开时未退出）<br><br>
-            <b>🖱 悬停预览</b> → 橙色高亮提示即将选中的范围<br>
-            <b>👆 点击</b> → 智能定位容器，一步到位<br>
-            <b>🔼 同处再点</b> → 升级到上一级容器<br>
+            <b>🖱 点击元素</b> → 智能定位容器，自动提取内容<br>
+            <b>↕ 工具栏 ↑↓</b> → 点击"上一级/下一级"切换容器层级<br>
+            <b>🔲 拖拽框选</b> → 画出一个矩形区域，自动识别表格<br>
             <b>📎 追加按钮</b> → 开启后多选累加内容<br>
             <b>👁 预览/源码</b> → 切换渲染视图<br>
             <b>📷 截图</b> → 四种模式：🖥全屏 · 📄整页 · 🎯容器 · ➕多选<br><br>
