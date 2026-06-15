@@ -123,6 +123,7 @@
     <span style="color:#f08c00;font-weight:600;font-size:13px;">🎯 拾取</span>
     <div style="display:flex;gap:4px;">
       <button id="__lh_f_ap" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;transition:all 0.15s;">📎 追加</button>
+      <button id="__lh_f_pv" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;transition:all 0.15s;">👁</button>
       <button id="__lh_f_cp" style="background:#2b8a3e;color:#fff;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;">📋</button>
       <button id="__lh_f_dl" style="background:#f08c00;color:#fff;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;">💾</button>
       <button id="__lh_f_x" style="background:transparent;color:#909296;border:1px solid #373a40;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;">✕</button>
@@ -174,6 +175,20 @@
       });
     }
 
+    // 预览切换
+    const pvBtn = document.getElementById('__lh_f_pv');
+    if (pvBtn) {
+      pvBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showRendered = !showRendered;
+        pvBtn.style.background = showRendered ? '#f08c00' : '#373a40';
+        pvBtn.style.color = showRendered ? '#fff' : '#909296';
+        const b = document.getElementById('__lh_f_b');
+        const s = document.getElementById('__lh_f_s');
+        if (b) refreshDisplay(b, s, '');
+      });
+    }
+
     // 拖拽
     const h = document.getElementById('__lh_f_h');
     if (h) {
@@ -199,14 +214,26 @@
     const b = document.getElementById('__lh_f_b');
     const s = document.getElementById('__lh_f_s');
     if (!b) return;
-    if (appendMode && b.textContent) {
-      b.textContent = b.textContent + '\n\n---\n\n' + md;
+    if (appendMode && lastRawMd) {
+      lastRawMd = lastRawMd + '\n\n---\n\n' + md;
     } else {
-      b.textContent = md;
+      lastRawMd = md;
+    }
+    refreshDisplay(b, s, type);
+    showFloater();
+  }
+
+  function refreshDisplay(b, s, type) {
+    if (showRendered) {
+      b.innerHTML = renderMarkdown(lastRawMd);
+      b.style.whiteSpace = 'normal';
+    } else {
+      b.textContent = lastRawMd;
+      b.style.whiteSpace = 'pre-wrap';
     }
     const mode = appendMode ? ' · 追加' : '';
-    if (s) s.textContent = `✅ 已提取 (${type})${mode}`;
-    showFloater();
+    const viewTag = showRendered ? '👁 预览' : '📝 源码';
+    if (s) s.textContent = (type ? `✅ 已提取 (${type})` : viewTag) + mode + (type ? ` · [${viewTag}]` : '');
   }
 
   function setStatus(msg) {
@@ -312,6 +339,58 @@
   function hideHighlight() {
     if (hoverHighlight) hoverHighlight.style.display = 'none';
   }
+
+  // ==================== Markdown 渲染预览 ====================
+
+  function renderMarkdown(md) {
+    if (!md) return '';
+    const lines = md.split('\n');
+    const out = [];
+    let inTable = false;
+
+    for (let i = 0; i < lines.length; i++) {
+      let line = lines[i];
+      line = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+      const isTable = /^\|.+\|$/.test(line.trim());
+      const isSep = /^\|[\s:-]+\|$/.test(line.trim());
+
+      if (isTable || isSep) {
+        if (!inTable) {
+          out.push('<table style="border-collapse:collapse;width:100%;font-size:12px;margin:6px 0;border:1px solid #373a40;">');
+          inTable = true;
+        }
+        if (isSep) continue;
+        const isHeader = i + 1 < lines.length && /^\|[\s:-]+\|$/.test(lines[i + 1].trim());
+        const tag = isHeader ? 'th' : 'td';
+        const head = isHeader ? 'background:#25262b;font-weight:600;color:#e0e0e0;' : '';
+        const cells = line.split('|').filter(c => c.trim() !== '');
+        out.push('<tr>');
+        cells.forEach(c => out.push(`<${tag} style="border:1px solid #373a40;padding:4px 8px;text-align:left;${head}">${c.trim()}</${tag}>`));
+        out.push('</tr>');
+        continue;
+      }
+      if (inTable) { out.push('</table>'); inTable = false; }
+
+      if (/^#{1,6}\s/.test(line)) {
+        const lv = line.match(/^(#+)/)[1].length;
+        out.push(`<h${lv} style="margin:8px 0 4px;color:#c1c2c5;font-weight:600;">${line.replace(/^#+\s*/, '')}</h${lv}>`);
+      } else if (/^---+$/.test(line.trim())) {
+        out.push('<hr style="border:none;border-top:1px solid #373a40;margin:8px 0;">');
+      } else {
+        line = line.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#e0e0e0;">$1</strong>')
+                   .replace(/\*(.+?)\*/g, '<em>$1</em>')
+                   .replace(/`(.+?)`/g, '<code style="background:#25262b;padding:1px 4px;border-radius:2px;font-size:11px;">$1</code>')
+                   .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" style="color:#f08c00;">$1</a>');
+        out.push(`<div style="line-height:1.6;${line ? '' : 'height:0.5em;'}">${line || '&nbsp;'}</div>`);
+      }
+    }
+    if (inTable) out.push('</table>');
+    return out.join('\n');
+  }
+
+  let showRendered = false;
+  let lastRawMd = '';
 
   // ---- 点击升级 (Click Escalation) ----
   let escalation = { target: null, time: 0, current: null };
