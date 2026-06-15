@@ -637,7 +637,7 @@
       return;
     }
     currentSelectedEl = el;
-    console.log('[蓝湖] currentSelectedEl 已设置:', el.tagName, 'id:', el.id || '-', 'classes:', (el.className || '').slice(0,40));
+    console.log('[蓝湖]', frameTag, 'currentSelectedEl 已设置:', el.tagName, 'id:', el.id || '-', 'classes:', (el.className || '').slice(0,40));
     // 把选中元素坐标存到浮动面板 dataset（持久化，JS 变量丢失不影响）
     const fr = el.getBoundingClientRect();
     if (floater) {
@@ -645,9 +645,9 @@
       floater.dataset.selTop = fr.top;
       floater.dataset.selW = fr.width;
       floater.dataset.selH = fr.height;
-      console.log('[蓝湖] floater.dataset 已写入:', fr.left, fr.top, fr.width, fr.height);
+      console.log('[蓝湖]', frameTag, 'floater.dataset 已写入:', fr.left, fr.top, fr.width, fr.height);
     } else {
-      console.log('[蓝湖] floater 为空，无法写入 dataset');
+      console.log('[蓝湖]', frameTag, 'floater 为空，无法写入 dataset');
     }
 
     highlightEl(el);
