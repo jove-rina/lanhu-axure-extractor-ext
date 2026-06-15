@@ -5,7 +5,7 @@
  * 职责：
  * 1. 检测当前 frame 是否包含 Axure 原型内容
  * 2. 提取表格和需求文本
- * 3. 顶层 frame 还会扫描所有可访问的子 iframe
+ * 3. 拾取模式：鼠标悬停高亮元素，点击提取为 Markdown
  * 4. 通过 chrome.runtime.sendMessage 响应外部请求
  */
 
@@ -13,12 +13,15 @@
   'use strict';
 
   const FRAME_CTX = getFrameContext();
-
   console.log(`[蓝湖提取器] 内容脚本已加载 — frame: ${FRAME_CTX}`);
+
+  // ---- 拾取模式状态 ----
+  let pickerActive = false;
+  let pickerHighlight = null;
+  let pickerOverlay = null;
 
   // ---- 工具函数 ----
 
-  /** 获取当前 frame 的上下文标识 */
   function getFrameContext() {
     try {
       if (window.top === window.self) return 'top';
@@ -29,7 +32,6 @@
     }
   }
 
-  /** 判断当前页面是否包含 Axure 原型内容 */
   function isAxureContent(doc) {
     doc = doc || document;
     const checks = [
@@ -41,92 +43,17 @@
       () => !!doc.querySelector('[data-gen-guid]'),
       () => !!doc.querySelector('[class*="ax_" i]'),
       () => !!doc.querySelector('[id*="ax_" i]'),
-      // Axure 生成的页面常有 axure 相关 meta
       () => /axure/i.test(doc.querySelector('meta[name="generator"]')?.content || ''),
-      // 蓝湖 Axure 页面常见标记
       () => /axure/i.test(doc.body?.className || '') || /axure/i.test(doc.body?.id || ''),
     ];
     return checks.some(fn => fn());
   }
 
-  /** 判断页面是否在蓝湖 Axure 原型查看页 */
   function isLanhuAxurePage() {
     if (FRAME_CTX !== 'top') return false;
     const hash = location.hash || '';
     const path = location.pathname || '';
     return /axure/i.test(hash) || /axure/i.test(path);
-  }
-
-  /** 尝试从指定 document 中提取 frame 列表 */
-  function getAccessibleIframes(doc) {
-    doc = doc || document;
-    const result = [];
-    try {
-      const iframes = doc.querySelectorAll('iframe');
-      iframes.forEach((f, i) => {
-        try {
-          const iDoc = f.contentDocument || f.contentWindow?.document;
-          const status = f.src ? 'loaded' : 'empty';
-          result.push({
-            index: i,
-            src: f.src || '(inline)',
-            width: f.width || 'auto',
-            height: f.height || 'auto',
-            accessible: !!iDoc,
-            title: f.title || '',
-            id: f.id || '',
-            readyState: iDoc ? (iDoc.readyState || 'unknown') : 'blocked',
-          });
-        } catch {
-          result.push({
-            index: i,
-            src: f.src || '(inline)',
-            accessible: false,
-            title: f.title || '',
-            id: f.id || '',
-          });
-        }
-      });
-    } catch (e) {
-      console.warn('[蓝湖提取器] 扫描 iframe 失败:', e);
-    }
-    return result;
-  }
-
-  /** 尝试从可访问的 iframe 中提取内容 */
-  function extractFromFrames(doc) {
-    doc = doc || document;
-    const results = [];
-
-    try {
-      const iframes = doc.querySelectorAll('iframe');
-      iframes.forEach((f, i) => {
-        try {
-          const iDoc = f.contentDocument || f.contentWindow?.document;
-          if (!iDoc) return;
-
-          // 尝试在这个 iframe 中提取 Axure 内容
-          if (isAxureContent(iDoc)) {
-            const frameResult = extractFromDocument(iDoc);
-            if (frameResult && frameResult.sections.length > 0) {
-              results.push({
-                frameIndex: i,
-                title: iDoc.title || f.title || `iframe-${i}`,
-                src: f.src || '',
-                sections: frameResult.sections,
-                markdown: frameResult.markdown,
-              });
-            }
-          }
-        } catch {
-          // 跨域 iframe 或未加载完成
-        }
-      });
-    } catch (e) {
-      console.warn('[蓝湖提取器] iframe 内容提取失败:', e);
-    }
-
-    return results;
   }
 
   // ---- HTML → Markdown 转换 ----
@@ -164,9 +91,7 @@
       const structures = Array.from(children).map(child =>
         child.querySelectorAll('div, span, p').length
       );
-      const isUniform = structures.every(
-        (n, i, arr) => Math.abs(n - arr[0]) <= 2
-      );
+      const isUniform = structures.every((n, i, arr) => Math.abs(n - arr[0]) <= 2);
 
       if (isUniform && structures[0] >= 1) {
         const rows = Array.from(children).map(child => {
@@ -189,21 +114,396 @@
         }
       }
     });
-
     return results;
   }
 
-  // ---- 核心提取 ----
+  /** 将任意 HTML 元素转换为 Markdown */
+  function elementToMarkdown(el) {
+    if (!el) return { markdown: '', type: 'empty', text: '' };
 
-  /**
-   * 从指定 document 中提取表格和文本内容
-   */
+    const tag = el.tagName.toLowerCase();
+
+    // 1. 表格
+    if (tag === 'table') {
+      const md = tableToMarkdown(el);
+      if (md) {
+        return { markdown: md, type: 'table', text: el.innerText.trim().substring(0, 200) };
+      }
+    }
+
+    // 2. 如果元素直接包含表格（例如 div 包裹 table）
+    const innerTable = el.querySelector('table');
+    if (innerTable) {
+      const md = tableToMarkdown(innerTable);
+      if (md) {
+        return { markdown: md, type: 'table', text: innerTable.innerText.trim().substring(0, 200) };
+      }
+    }
+
+    // 3. 检查 div 模拟表格
+    const divTableMds = extractDivTables(el);
+    if (divTableMds.length > 0) {
+      return { markdown: divTableMds[0], type: 'table', text: el.innerText.trim().substring(0, 200) };
+    }
+
+    // 4. 列表
+    if (['ul', 'ol'].includes(tag)) {
+      const items = el.querySelectorAll('li');
+      const lines = Array.from(items).map((li, i) => {
+        const prefix = tag === 'ol' ? `${i + 1}.` : '-';
+        return `${prefix} ${li.innerText.trim()}`;
+      });
+      if (lines.length > 0) {
+        return { markdown: lines.join('\n'), type: 'list', text: el.innerText.trim().substring(0, 200) };
+      }
+    }
+
+    // 5. 代码块
+    if (['code', 'pre'].includes(tag)) {
+      return { markdown: '```\n' + el.innerText.trim() + '\n```', type: 'code', text: el.innerText.trim().substring(0, 200) };
+    }
+
+    // 6. 图片
+    if (tag === 'img') {
+      const src = el.src || '';
+      const alt = el.alt || '';
+      return { markdown: `![${alt}](${src})`, type: 'image', text: alt || src };
+    }
+
+    // 7. 链接
+    if (tag === 'a' && el.href) {
+      return { markdown: `[${el.innerText.trim()}](${el.href})`, type: 'link', text: el.innerText.trim() };
+    }
+
+    // 8. 标题
+    if (/^h[1-6]$/.test(tag)) {
+      const level = tag[1];
+      return { markdown: `${'#'.repeat(parseInt(level))} ${el.innerText.trim()}`, type: 'heading', text: el.innerText.trim() };
+    }
+
+    // 9. 段落或普通文本块
+    if (tag === 'p' || tag === 'div' || tag === 'section' || tag === 'article') {
+      const text = el.innerText.trim();
+      // 检测内部是否有结构化内容
+      const innerHeadings = el.querySelectorAll('h1, h2, h3, h4, h5, h6');
+      if (innerHeadings.length > 0) {
+        // 递归提取子结构
+        return extractStructuredElement(el);
+      }
+      if (text.length > 0) {
+        return { markdown: text, type: 'text', text: text.substring(0, 200) };
+      }
+    }
+
+    // 10. 默认：提取所有文本
+    const text = el.innerText.trim();
+    if (text.length > 0) {
+      return { markdown: text, type: 'text', text: text.substring(0, 200) };
+    }
+
+    return { markdown: '', type: 'empty', text: '' };
+  }
+
+  /** 提取结构化元素（含子标题、段落、表格） */
+  function extractStructuredElement(container) {
+    const parts = [];
+    const children = container.children;
+
+    if (children.length === 0) {
+      const text = container.innerText.trim();
+      if (text) parts.push(text);
+    } else {
+      Array.from(children).forEach(child => {
+        const result = elementToMarkdown(child);
+        if (result.markdown) parts.push(result.markdown);
+      });
+    }
+
+    return {
+      markdown: parts.join('\n\n'),
+      type: 'structured',
+      text: container.innerText.trim().substring(0, 200),
+    };
+  }
+
+  // ---- 拾取模式 ----
+
+  function createPickerUI() {
+    // 高亮框
+    pickerHighlight = document.createElement('div');
+    pickerHighlight.id = '__lh_picker_highlight__';
+    Object.assign(pickerHighlight.style, {
+      position: 'fixed',
+      pointerEvents: 'none',
+      zIndex: '2147483646',
+      border: '2px solid #f08c00',
+      background: 'rgba(240, 140, 0, 0.08)',
+      borderRadius: '4px',
+      transition: 'all 0.1s ease',
+      display: 'none',
+    });
+    document.body.appendChild(pickerHighlight);
+
+    // 信息标签
+    pickerOverlay = document.createElement('div');
+    pickerOverlay.id = '__lh_picker_overlay__';
+    Object.assign(pickerOverlay.style, {
+      position: 'fixed',
+      pointerEvents: 'none',
+      zIndex: '2147483647',
+      background: '#f08c00',
+      color: '#fff',
+      fontSize: '11px',
+      padding: '2px 8px',
+      borderRadius: '3px',
+      fontFamily: 'monospace',
+      display: 'none',
+    });
+    document.body.appendChild(pickerOverlay);
+  }
+
+  function removePickerUI() {
+    if (pickerHighlight) { pickerHighlight.remove(); pickerHighlight = null; }
+    if (pickerOverlay) { pickerOverlay.remove(); pickerOverlay = null; }
+  }
+
+  let pickerTarget = null;
+
+  function onPickerMouseMove(e) {
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (!el || el === pickerHighlight || el === pickerOverlay || el.id?.startsWith('__lh_picker')) return;
+
+    pickerTarget = el;
+    const rect = el.getBoundingClientRect();
+
+    if (pickerHighlight) {
+      pickerHighlight.style.display = 'block';
+      pickerHighlight.style.left = rect.left + 'px';
+      pickerHighlight.style.top = rect.top + 'px';
+      pickerHighlight.style.width = rect.width + 'px';
+      pickerHighlight.style.height = rect.height + 'px';
+    }
+
+    if (pickerOverlay) {
+      pickerOverlay.style.display = 'block';
+      pickerOverlay.style.left = rect.left + 'px';
+      pickerOverlay.style.top = (rect.top - 22) + 'px';
+      const tag = el.tagName.toLowerCase();
+      const id = el.id ? `#${el.id}` : '';
+      const cls = Array.from(el.classList).slice(0, 2).map(c => `.${c}`).join('');
+      const info = el.innerText.trim().substring(0, 40).replace(/\n/g, ' ');
+      pickerOverlay.textContent = `<${tag}${id}${cls}> · ${info}`;
+      if (pickerOverlay.style.top < '0') {
+        pickerOverlay.style.top = (rect.bottom + 4) + 'px';
+      }
+    }
+  }
+
+  function onPickerClick(e) {
+    if (!pickerTarget) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const result = elementToMarkdown(pickerTarget);
+
+    // 获取选择器路径
+    const path = getElementSelector(pickerTarget);
+
+    // 关闭拾取模式
+    deactivatePicker();
+
+    // 发送结果回 popup
+    chrome.runtime.sendMessage({
+      action: 'picker-result',
+      data: {
+        markdown: result.markdown,
+        type: result.type,
+        text: result.text,
+        selector: path,
+        tag: pickerTarget.tagName.toLowerCase(),
+        id: pickerTarget.id || '',
+        classes: Array.from(pickerTarget.classList).join('.'),
+      },
+    });
+  }
+
+  function onPickerKeyDown(e) {
+    if (e.key === 'Escape') {
+      deactivatePicker();
+      chrome.runtime.sendMessage({ action: 'picker-cancelled' });
+    }
+  }
+
+  function activatePicker() {
+    if (pickerActive) return;
+    pickerActive = true;
+
+    createPickerUI();
+
+    document.addEventListener('mousemove', onPickerMouseMove, true);
+    document.addEventListener('click', onPickerClick, true);
+    document.addEventListener('keydown', onPickerKeyDown, true);
+
+    // 防止页面滚动干扰
+    document.body.style.cursor = 'crosshair';
+    document.body.style.userSelect = 'none';
+
+    console.log('[蓝湖提取器] 拾取模式已激活 — 悬停查看元素，点击提取，ESC 退出');
+  }
+
+  function deactivatePicker() {
+    if (!pickerActive) return;
+    pickerActive = false;
+
+    document.removeEventListener('mousemove', onPickerMouseMove, true);
+    document.removeEventListener('click', onPickerClick, true);
+    document.removeEventListener('keydown', onPickerKeyDown, true);
+
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+
+    removePickerUI();
+    pickerTarget = null;
+
+    console.log('[蓝湖提取器] 拾取模式已退出');
+  }
+
+  /** 生成 CSS 选择器路径 */
+  function getElementSelector(el) {
+    if (!el || el === document.body) return 'body';
+    const path = [];
+    let current = el;
+    while (current && current !== document.body && current !== document.documentElement) {
+      const tag = current.tagName.toLowerCase();
+      let selector = tag;
+      if (current.id) {
+        selector = `#${current.id}`;
+        path.unshift(selector);
+        break;
+      }
+      if (current.className && typeof current.className === 'string') {
+        const classes = current.className.trim().split(/\s+/).filter(Boolean).slice(0, 2);
+        if (classes.length > 0) selector += '.' + classes.join('.');
+      }
+      // 添加 nth-child
+      const parent = current.parentElement;
+      if (parent) {
+        const siblings = Array.from(parent.children).filter(c => c.tagName === current.tagName);
+        if (siblings.length > 1) {
+          const idx = siblings.indexOf(current) + 1;
+          selector += `:nth-child(${idx})`;
+        }
+      }
+      path.unshift(selector);
+      current = current.parentElement;
+    }
+    return path.join(' > ');
+  }
+
+  // ---- 页面内容提取 ----
+
+  function elementToMarkdown(el) {
+    if (!el) return { markdown: '', type: 'empty', text: '' };
+
+    const tag = el.tagName.toLowerCase();
+
+    // 1. 表格
+    if (tag === 'table') {
+      const md = tableToMarkdown(el);
+      if (md) {
+        return { markdown: `### 选中表格\n\n${md}`, type: 'table', text: el.innerText.trim().substring(0, 200) };
+      }
+    }
+
+    // 2. 包含表格的元素
+    const innerTable = el.querySelector('table');
+    if (innerTable) {
+      const md = tableToMarkdown(innerTable);
+      if (md) {
+        return { markdown: `### 选中内容（含表格）\n\n${md}`, type: 'table', text: innerTable.innerText.trim().substring(0, 200) };
+      }
+    }
+
+    // 3. div 模拟表格
+    const divTableMds = extractDivTables(el);
+    if (divTableMds.length > 0) {
+      return { markdown: `### 选中数据区域\n\n${divTableMds[0]}`, type: 'table', text: el.innerText.trim().substring(0, 200) };
+    }
+
+    // 4. 检查子元素中的模拟表格
+    const subDivs = el.querySelectorAll('div[class*="grid"], div[class*="row"]');
+    for (const div of subDivs) {
+      const mds = extractDivTables(div);
+      if (mds.length > 0) {
+        return { markdown: `### 选中区域\n\n${mds[0]}`, type: 'table', text: div.innerText.trim().substring(0, 200) };
+      }
+    }
+
+    // 5. 列表
+    if (['ul', 'ol'].includes(tag)) {
+      const items = el.querySelectorAll('li');
+      const lines = Array.from(items).map((li, i) => {
+        const prefix = tag === 'ol' ? `${i + 1}.` : '-';
+        return `${prefix} ${li.innerText.trim()}`;
+      });
+      if (lines.length > 0) {
+        return { markdown: lines.join('\n'), type: 'list', text: el.innerText.trim().substring(0, 200) };
+      }
+    }
+
+    // 6. 代码
+    if (['code', 'pre'].includes(tag)) {
+      return { markdown: '```\n' + el.innerText.trim() + '\n```', type: 'code', text: el.innerText.trim().substring(0, 200) };
+    }
+
+    // 7. 图片
+    if (tag === 'img') {
+      return { markdown: `![${el.alt || ''}](${el.src || ''})`, type: 'image', text: el.alt || el.src || '' };
+    }
+
+    // 8. 结构化内容（含标题+文本）
+    const headings = el.querySelectorAll('h1, h2, h3, h4, h5, h6');
+    if (headings.length > 0 || el.children.length >= 2) {
+      return extractStructuredElement(el);
+    }
+
+    // 9. 纯文本
+    const text = el.innerText.trim();
+    if (text.length > 0) {
+      return { markdown: text, type: 'text', text: text.substring(0, 200) };
+    }
+
+    return { markdown: '', type: 'empty', text: '' };
+  }
+
+  function extractStructuredElement(container) {
+    const parts = [];
+    const children = container.children;
+
+    if (children.length === 0) {
+      const text = container.innerText.trim();
+      if (text) parts.push(text);
+    } else {
+      Array.from(children).forEach(child => {
+        const result = elementToMarkdown(child);
+        if (result.markdown) parts.push(result.markdown);
+      });
+    }
+
+    return {
+      markdown: `### 选中内容\n\n${parts.join('\n\n')}`,
+      type: 'structured',
+      text: container.innerText.trim().substring(0, 200),
+    };
+  }
+
+  // ---- 全页提取 ----
+
   function extractFromDocument(doc) {
     const sections = [];
     const container = doc.body;
     if (!container) return { sections: [], markdown: '' };
 
-    // 1. 提取 HTML 表格
     const tables = container.querySelectorAll('table');
     tables.forEach((table, idx) => {
       const rows = table.querySelectorAll('tr');
@@ -214,32 +514,21 @@
         const heading = prev && ['H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'P'].includes(prev.tagName)
           ? prev.innerText.trim()
           : `表格 ${idx + 1}`;
-        sections.push({
-          type: 'table',
-          heading,
-          markdown: `### ${heading}\n\n${md}`,
-        });
+        sections.push({ type: 'table', heading, markdown: `### ${heading}\n\n${md}` });
       }
     });
 
-    // 2. 提取 div 模拟表格
     const divTables = extractDivTables(container);
     divTables.forEach((md, idx) => {
-      sections.push({
-        type: 'table',
-        heading: `数据表格 ${idx + 1}`,
-        markdown: `### 数据表格 ${idx + 1}\n\n${md}`,
-      });
+      sections.push({ type: 'table', heading: `数据表格 ${idx + 1}`, markdown: `### 数据表格 ${idx + 1}\n\n${md}` });
     });
 
-    // 3. 提取标题 + 正文
     const headings = container.querySelectorAll('h1, h2, h3, h4, h5, h6');
     const seenTexts = new Set();
     headings.forEach(h => {
       const text = h.innerText.trim();
       if (!text || seenTexts.has(text) || text.length < 2) return;
       seenTexts.add(text);
-
       const following = [];
       let next = h.nextElementSibling;
       while (next && !/^H[1-6]$/.test(next.tagName)) {
@@ -249,164 +538,68 @@
         }
         next = next.nextElementSibling;
       }
-
       if (following.length > 0) {
-        sections.push({
-          type: 'text',
-          heading: text,
-          markdown: `## ${text}\n\n${following.join('\n\n')}`,
-        });
+        sections.push({ type: 'text', heading: text, markdown: `## ${text}\n\n${following.join('\n\n')}` });
       } else {
         sections.push({ type: 'heading', heading: text, markdown: `## ${text}` });
       }
     });
 
-    // 4. 提取标注/注释
-    const annotations = container.querySelectorAll(
-      '[class*="annotation"], [class*="comment"], [class*="note"], [class*="remark"]'
-    );
+    const annotations = container.querySelectorAll('[class*="annotation"], [class*="comment"], [class*="note"], [class*="remark"]');
     if (annotations.length > 0) {
       const texts = Array.from(annotations).map(a => a.innerText.trim()).filter(t => t.length > 5);
       if (texts.length > 0) {
-        sections.push({
-          type: 'annotation',
-          heading: '页面标注/注释',
-          markdown: `## 页面标注/注释\n\n${texts.join('\n\n---\n\n')}`,
-        });
+        sections.push({ type: 'annotation', heading: '页面标注', markdown: `## 页面标注/注释\n\n${texts.join('\n\n---\n\n')}` });
       }
     }
 
-    // 5. 如果没有结构化的内容，把所有可见文本拿出来
     if (sections.length === 0 && container.innerText) {
       const text = container.innerText.trim();
       if (text.length > 50) {
-        sections.push({
-          type: 'text',
-          heading: '页面原文',
-          markdown: text.substring(0, 30000),
-        });
+        sections.push({ type: 'text', heading: '页面原文', markdown: text.substring(0, 30000) });
       }
     }
 
-    // 构建 Markdown
     const title = doc.title || '未知页面';
-    const url = doc.URL || location.href;
     const lines = [
       `# ${title}`,
-      ``,
-      `**页面**: ${url}`,
+      '',
       `**提取时间**: ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`,
-      ``,
-      `---`,
-      ``,
+      '',
+      '---',
+      '',
     ];
-    sections.forEach(s => {
-      lines.push(s.markdown);
-      lines.push(``);
-    });
-
+    sections.forEach(s => { lines.push(s.markdown); lines.push(''); });
     return { sections, markdown: lines.join('\n') };
   }
 
-  /**
-   * 顶层 frame 的完整提取流程：
-   * 1. 提取主页面内容
-   * 2. 扫描所有可访问的 iframe
-   * 3. 提取 iframe 中的内容
-   * 4. 汇总返回
-   */
   function fullExtract() {
-    const pages = [];
-
-    // 提取主页面
     const main = extractFromDocument(document);
-    const isAxure = isAxureContent(document);
-    const iframes = getAccessibleIframes(document);
-
-    const mainPage = {
-      frame: FRAME_CTX,
-      frameIndex: 0,
-      title: document.title || '主页面',
-      url: location.href,
-      isAxureContent: isAxure,
-      sections: main.sections,
-      markdown: main.markdown,
-    };
-    pages.push(mainPage);
-
-    // 提取 iframe 内容
-    const frameResults = extractFromFrames(document);
-    frameResults.forEach(fr => {
-      pages.push({
-        frame: 'sub-iframe',
-        frameIndex: fr.frameIndex + 1,
-        title: fr.title,
-        url: fr.src,
-        isAxureContent: true,
-        sections: fr.sections,
-        markdown: fr.markdown,
-      });
-    });
-
-    // 合并 Markdown
-    let combined = '';
-    const titleParts = [];
-    pages.forEach((p, idx) => {
-      if (idx > 0) {
-        combined += `\n\n---\n\n`;
-      }
-      combined += p.markdown;
-      titleParts.push(p.title);
-    });
-
     return {
       frame: FRAME_CTX,
-      isAxureContent: isAxure || frameResults.length > 0,
-      iframesFound: iframes,
-      iframesExtracted: frameResults.length,
-      pages: pages,
-      combinedMarkdown: combined,
-      allTitles: titleParts.join(' | '),
+      isAxureContent: isAxureContent(document),
+      pages: [{ frame: FRAME_CTX, title: document.title, sections: main.sections, markdown: main.markdown }],
+      combinedMarkdown: main.markdown,
     };
   }
 
-  /**
-   * 非顶层 frame 的简单提取
-   */
   function simpleExtract() {
     const result = extractFromDocument(document);
     return {
       frame: FRAME_CTX,
       isAxureContent: isAxureContent(document),
-      iframesFound: [],
-      iframesExtracted: 0,
-      pages: [{
-        frame: FRAME_CTX,
-        frameIndex: 0,
-        title: document.title || '子页面',
-        url: location.href,
-        isAxureContent: isAxureContent(document),
-        sections: result.sections,
-        markdown: result.markdown,
-      }],
+      pages: [{ frame: FRAME_CTX, title: document.title, sections: result.sections, markdown: result.markdown }],
       combinedMarkdown: result.markdown,
-      allTitles: document.title,
     };
   }
 
-  // ---- 诊断信息 ----
   function getDiagnostics() {
-    const iframes = getAccessibleIframes(document);
     return {
       frame: FRAME_CTX,
-      url: location.href,
+      isAxure: isAxureContent(document),
       title: document.title,
       bodySize: document.body?.innerText?.length || 0,
       tableCount: document.querySelectorAll('table').length,
-      isAxure: isAxureContent(document),
-      isLanhuAxurePage: isLanhuAxurePage(),
-      iframes: iframes,
-      contentScriptLoaded: true,
     };
   }
 
@@ -415,11 +608,8 @@
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     switch (request.action) {
       case 'extract-axure': {
-        if (FRAME_CTX === 'top') {
-          sendResponse({ status: 'ok', data: fullExtract() });
-        } else {
-          sendResponse({ status: 'ok', data: simpleExtract() });
-        }
+        if (FRAME_CTX === 'top') sendResponse({ status: 'ok', data: fullExtract() });
+        else sendResponse({ status: 'ok', data: simpleExtract() });
         break;
       }
 
@@ -427,24 +617,20 @@
         sendResponse({ pong: true, frame: FRAME_CTX });
         break;
 
-      case 'diagnose':
+      case 'diagnose-me':
         sendResponse({ status: 'ok', data: getDiagnostics() });
         break;
 
-      case 'diagnose-me':
-        sendResponse({
-          status: 'ok',
-          data: {
-            isAxure: isAxureContent(document),
-            title: document.title,
-            tableCount: document.querySelectorAll('table').length,
-            bodySize: document.body?.innerText?.length || 0,
-            frame: FRAME_CTX,
-          },
-        });
+      case 'start-picker':
+        activatePicker();
+        sendResponse({ status: 'ok', message: '拾取模式已激活' });
+        break;
+
+      case 'stop-picker':
+        deactivatePicker();
+        sendResponse({ status: 'ok', message: '拾取模式已退出' });
         break;
     }
-
     return true;
   });
 
