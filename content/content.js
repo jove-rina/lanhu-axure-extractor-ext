@@ -225,34 +225,38 @@
       return;
     }
     list.innerHTML = modules.map((m, mi) => `
-<div style="background:#25262b;border:1px solid #373a40;border-radius:6px;padding:8px 10px;margin-bottom:6px;">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-    <span style="color:#909296;font-size:11px;font-weight:600;">模块 ${mi + 1}</span>
-    <div style="display:flex;gap:3px;">
-      <button data-mv="${m.id}" data-dir="-1" style="background:#373a40;color:#909296;border:none;border-radius:3px;padding:1px 6px;font-size:10px;cursor:pointer;" ${mi === 0 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>↑</button>
-      <button data-mv="${m.id}" data-dir="1" style="background:#373a40;color:#909296;border:none;border-radius:3px;padding:1px 6px;font-size:10px;cursor:pointer;" ${mi === modules.length - 1 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>↓</button>
-      <button data-rm="${m.id}" style="background:transparent;color:#e03131;border:1px solid #e03131;border-radius:3px;padding:1px 6px;font-size:10px;cursor:pointer;">✕</button>
+<div style="background:#25262b;border:1px solid #373a40;border-radius:6px;padding:10px 12px;margin-bottom:8px;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+    <span style="color:#f08c00;font-size:12px;font-weight:600;">📄 模块 ${mi + 1}</span>
+    <div style="display:flex;gap:4px;">
+      <button data-mv="${m.id}" data-dir="-1" title="上移" style="background:#373a40;color:#909296;border:none;border-radius:3px;padding:2px 8px;font-size:11px;cursor:pointer;" ${mi === 0 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>↑</button>
+      <button data-mv="${m.id}" data-dir="1" title="下移" style="background:#373a40;color:#909296;border:none;border-radius:3px;padding:2px 8px;font-size:11px;cursor:pointer;" ${mi === modules.length - 1 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>↓</button>
+      <button data-rm="${m.id}" title="删除模块" style="background:transparent;color:#e03131;border:1px solid #e03131;border-radius:3px;padding:2px 8px;font-size:11px;cursor:pointer;">✕</button>
     </div>
   </div>
-  <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px;">
-    <span style="font-size:11px;color:#909296;white-space:nowrap;">📝 标题</span>
-    <input id="__lh_mt_${m.id}" value="${escHtml(m.title)}" placeholder="模块标题" style="flex:1;background:#1a1b1e;border:1px solid #373a40;border-radius:3px;padding:3px 6px;font-size:11px;color:#c1c2c5;outline:none;">
-    <button data-pick="${m.id}:title" style="background:#f08c00;color:#fff;border:none;border-radius:3px;padding:2px 6px;font-size:10px;cursor:pointer;" title="拾取标题">🎯</button>
+  <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;background:#1a1b1e;border-radius:4px;padding:4px 8px;">
+    <span style="font-size:12px;color:#909296;font-weight:500;white-space:nowrap;">📝 标题</span>
+    <input id="__lh_mt_${m.id}" value="${escHtml(m.title)}" placeholder="点击 🎯 拾取标题，或手动输入" style="flex:1;background:transparent;border:none;padding:4px 0;font-size:12px;color:#e0e0e0;outline:none;">
+    <button data-pick="${m.id}:title" title="从页面拾取标题" style="background:#f08c00;color:#fff;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">🎯 拾取</button>
   </div>
-  <div style="margin-top:4px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">
-      <span style="font-size:10px;color:#5c5f66;">📋 内容条目</span>
-      <button data-addc="${m.id}" style="background:#2b8a3e;color:#fff;border:none;border-radius:3px;padding:1px 8px;font-size:10px;cursor:pointer;">➕ 条目</button>
+  <div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+      <span style="font-size:11px;color:#909296;font-weight:500;">📋 内容条目 <span style="color:#5c5f66;font-weight:400;">(${m.contents.length})</span></span>
+      <button data-addc="${m.id}" title="新增空白条目" style="background:#2b8a3e;color:#fff;border:none;border-radius:4px;padding:2px 10px;font-size:11px;cursor:pointer;">➕ 新增条目</button>
     </div>
-    ${(m.contents.length === 0 ? '<div style="font-size:10px;color:#5c5f66;padding:4px 0;">暂无内容，点击🎯拾取或➕添加</div>' :
+    ${m.contents.length === 0 ? '<div style="font-size:11px;color:#5c5f66;padding:8px 0;text-align:center;">暂无内容，点击 🎯 拾取页面元素 或 「➕ 新增条目」</div>' :
       m.contents.map((c, ci) => `
-    <div style="display:flex;align-items:flex-start;gap:3px;margin-bottom:3px;">
-      <textarea id="__lh_mc_${m.id}_${ci}" rows="1" placeholder="内容 ${ci+1}" style="flex:1;background:#1a1b1e;border:1px solid #373a40;border-radius:3px;padding:2px 5px;font-size:10px;color:#c1c2c5;outline:none;resize:vertical;font-family:inherit;line-height:1.3;min-height:20px;">${escHtml(c)}</textarea>
-      <button data-pick="${m.id}:content:${ci}" style="background:#f08c00;color:#fff;border:none;border-radius:3px;padding:2px 5px;font-size:9px;cursor:pointer;" title="拾取到本条">🎯</button>
-      <button data-mvc="${m.id}:${ci}:-1" style="background:#373a40;color:#909296;border:none;border-radius:3px;padding:2px 5px;font-size:9px;cursor:pointer;" ${ci === 0 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>↑</button>
-      <button data-mvc="${m.id}:${ci}:1" style="background:#373a40;color:#909296;border:none;border-radius:3px;padding:2px 5px;font-size:9px;cursor:pointer;" ${ci === m.contents.length - 1 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>↓</button>
-      <button data-rmc="${m.id}:${ci}" style="background:transparent;color:#e03131;border:1px solid #e03131;border-radius:3px;padding:2px 5px;font-size:9px;cursor:pointer;">✕</button>
-    </div>`).join(''))}
+    <div style="background:#1a1b1e;border-radius:4px;padding:4px 8px;margin-bottom:4px;">
+      <div style="display:flex;align-items:flex-start;gap:4px;">
+        <textarea id="__lh_mc_${m.id}_${ci}" rows="1" placeholder="内容 ${ci+1}" style="flex:1;background:transparent;border:none;padding:4px 0;font-size:11px;color:#c1c2c5;outline:none;resize:vertical;font-family:inherit;line-height:1.5;min-height:22px;">${escHtml(c)}</textarea>
+        <div style="display:flex;gap:2px;flex-shrink:0;margin-top:2px;">
+          <button data-pick="${m.id}:content:${ci}" title="拾取到本条" style="background:#f08c00;color:#fff;border:none;border-radius:3px;padding:2px 6px;font-size:10px;cursor:pointer;">🎯</button>
+          <button data-mvc="${m.id}:${ci}:-1" title="上移" style="background:#373a40;color:#909296;border:none;border-radius:3px;padding:2px 5px;font-size:10px;cursor:pointer;" ${ci === 0 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>↑</button>
+          <button data-mvc="${m.id}:${ci}:1" title="下移" style="background:#373a40;color:#909296;border:none;border-radius:3px;padding:2px 5px;font-size:10px;cursor:pointer;" ${ci === m.contents.length - 1 ? 'disabled style="opacity:0.3;cursor:default;"' : ''}>↓</button>
+          <button data-rmc="${m.id}:${ci}" title="删除" style="background:transparent;color:#e03131;border:1px solid #e03131;border-radius:3px;padding:2px 5px;font-size:10px;cursor:pointer;">✕</button>
+        </div>
+      </div>
+    </div>`).join('')}
   </div>
 </div>`).join('');
 
@@ -314,8 +318,8 @@
     const inp = document.getElementById(targetId);
     if (inp) inp.style.borderColor = '#f08c00';
 
-    // 清空旧高亮并设置新高亮
     hideHighlight();
+    selectionLocked = false;
   }
 
   function finishPick(md) {
