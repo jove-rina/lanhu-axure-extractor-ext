@@ -2,564 +2,273 @@
  * 蓝湖 Axure 需求提取器 — 内容脚本
  * 运行在 lanhuapp.com 的所有 frame 中 (all_frames: true)
  *
- * 职责：
- * 1. 检测当前 frame 是否包含 Axure 原型内容
- * 2. 提取表格和需求文本
- * 3. 拾取模式：鼠标悬停高亮元素，点击提取为 Markdown
- * 4. 通过 chrome.runtime.sendMessage 响应外部请求
+ * 支持：
+ * - 全页自动扫描：提取表格/文本/组件
+ * - 拾取模式：鼠标悬停高亮，点击提取
+ * - Axure div 表格识别（基于 getBoundingClientRect 行列推断）
  */
 
 (() => {
   'use strict';
 
   const FRAME_CTX = getFrameContext();
-  console.log(`[蓝湖提取器] 内容脚本已加载 — frame: ${FRAME_CTX}`);
+  console.log(`[蓝湖提取器] 已加载 — frame: ${FRAME_CTX}`);
 
   // ---- 拾取模式状态 ----
   let pickerActive = false;
   let pickerHighlight = null;
   let pickerOverlay = null;
+  let pickerTarget = null;
+  let onPickerClickHandler = null;
+  let onPickerMoveHandler = null;
+  let onPickerKeyHandler = null;
 
-  // ---- 工具函数 ----
+  // ==================== 工具函数 ====================
 
   function getFrameContext() {
     try {
       if (window.top === window.self) return 'top';
       const parentHost = window.parent.location.hostname;
       return parentHost.includes('lanhuapp') ? 'lanhu-iframe' : 'unknown-iframe';
-    } catch {
-      return 'cross-origin-iframe';
-    }
+    } catch { return 'cross-origin-iframe'; }
   }
 
-  function isAxureContent(doc) {
-    doc = doc || document;
-    const checks = [
-      () => !!doc.querySelector('frameset'),
-      () => !!doc.querySelector('[class*="axure" i]'),
-      () => !!doc.querySelector('[id*="axure" i]'),
-      () => !!doc.querySelector('[class*="prototype" i]'),
-      () => !!doc.querySelector('[id*="prototype" i]'),
-      () => !!doc.querySelector('[data-gen-guid]'),
-      () => !!doc.querySelector('[class*="ax_" i]'),
-      () => !!doc.querySelector('[id*="ax_" i]'),
-      () => /axure/i.test(doc.querySelector('meta[name="generator"]')?.content || ''),
-      () => /axure/i.test(doc.body?.className || '') || /axure/i.test(doc.body?.id || ''),
-    ];
-    return checks.some(fn => fn());
+  function axureText(el) {
+    // Axure 文本在 <div class="text"> 或 <div id="uXX_text"> 中
+    if (!el) return '';
+    const textDiv = el.querySelector('.text, [id$="_text"]');
+    if (textDiv) return textDiv.innerText.trim();
+    return el.innerText.trim();
   }
 
-  function isLanhuAxurePage() {
-    if (FRAME_CTX !== 'top') return false;
-    const hash = location.hash || '';
-    const path = location.pathname || '';
-    return /axure/i.test(hash) || /axure/i.test(path);
+  function isVisible(el) {
+    if (!el || !el.getBoundingClientRect) return false;
+    const rect = el.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
   }
 
-  // ---- HTML → Markdown 转换 ----
-
-  function tableToMarkdown(table) {
-    const rows = table.querySelectorAll('tr');
-    if (rows.length === 0) return '';
-
-    const mdRows = [];
-    rows.forEach((row, rowIdx) => {
-      const cells = row.querySelectorAll('th, td');
-      const cellTexts = Array.from(cells).map(cell =>
-        cell.innerText.trim().replace(/\s*\n\s*/g, ' ')
-      );
-      if (rowIdx === 0) {
-        mdRows.push(`| ${cellTexts.join(' | ')} |`);
-        mdRows.push(`| ${cellTexts.map(() => '---').join(' | ')} |`);
-      } else {
-        mdRows.push(`| ${cellTexts.join(' | ')} |`);
-      }
-    });
-    return mdRows.join('\n');
+  function escapeMd(text) {
+    return text.replace(/\|/g, '\\|').replace(/\n/g, ' ');
   }
 
-  function extractDivTables(container) {
+  // ==================== Axure 表格提取（核心！） ====================
+
+  /**
+   * Axure 表格检测：
+   * 找含有 table_cell 子元素的容器 → 用 getBoundingClientRect 推断行列
+   */
+  function findAxureTables(root) {
     const results = [];
-    const candidates = container.querySelectorAll(
-      'div[class*="grid"], div[class*="table"], div[class*="list"], div[class*="row"]'
-    );
+    root = root || document;
 
-    candidates.forEach(div => {
-      const children = div.children;
-      if (children.length < 2) return;
+    // 1. 找直接包含 table_cell 的容器
+    const tableContainers = root.querySelectorAll(':scope > .ax_default > .ax_default.table_cell, :scope > .ax_default.table_cell');
+    
+    // 更好的方式：找所有 table_cell 的父容器
+    const allCells = root.querySelectorAll('.ax_default.table_cell');
+    const containerMap = new Map();
 
-      const structures = Array.from(children).map(child =>
-        child.querySelectorAll('div, span, p').length
-      );
-      const isUniform = structures.every((n, i, arr) => Math.abs(n - arr[0]) <= 2);
-
-      if (isUniform && structures[0] >= 1) {
-        const rows = Array.from(children).map(child => {
-          const items = child.querySelectorAll('div, span, p');
-          return Array.from(items).map(el => el.innerText.trim()).filter(t => t.length > 0);
-        });
-        const validRows = rows.filter(r => r.length > 0);
-        if (validRows.length >= 2) {
-          const maxCols = Math.max(...validRows.map(r => r.length));
-          const normalized = validRows.map(r => {
-            while (r.length < maxCols) r.push('');
-            return r;
-          });
-          const mdRows = [];
-          normalized.forEach((row, idx) => {
-            mdRows.push(`| ${row.join(' | ')} |`);
-            if (idx === 0) mdRows.push(`| ${row.map(() => '---').join(' | ')} |`);
-          });
-          results.push(mdRows.join('\n'));
-        }
+    allCells.forEach(cell => {
+      if (!isVisible(cell)) return;
+      let parent = cell.parentElement;
+      while (parent && parent !== root && parent !== root.body) {
+        if (parent.classList.contains('ax_default') || parent.id === 'base') break;
+        parent = parent.parentElement;
       }
+      if (!parent) parent = cell.parentElement;
+
+      if (!containerMap.has(parent)) containerMap.set(parent, []);
+      containerMap.get(parent).push(cell);
     });
+
+    containerMap.forEach((cells, container) => {
+      if (cells.length < 2) return;
+
+      // 用 getBoundingClientRect 获取每个 cell 的位置
+      const cellRects = cells.map(cell => {
+        const rect = cell.getBoundingClientRect();
+        return {
+          el: cell,
+          text: axureText(cell),
+          x: Math.round(rect.left),
+          y: Math.round(rect.top),
+          w: Math.round(rect.width),
+          h: Math.round(rect.height),
+        };
+      }).filter(c => c.text.length > 0 || c.w > 10);
+
+      if (cellRects.length < 2) return;
+
+      // 按 Y 分组（行），容差 5px
+      const rows = [];
+      const yTolerance = 5;
+      cellRects.sort((a, b) => a.y - b.y);
+
+      cellRects.forEach(c => {
+        let found = false;
+        for (const row of rows) {
+          if (Math.abs(row.y - c.y) <= yTolerance) {
+            row.cells.push(c);
+            row.y = Math.min(row.y, c.y);
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          rows.push({ y: c.y, cells: [c] });
+        }
+      });
+
+      // 每行内按 X 排序
+      rows.forEach(row => row.cells.sort((a, b) => a.x - b.x));
+
+      // 检查是否真的是表格（至少2行2列）
+      if (rows.length < 2) return;
+      const colCounts = rows.map(r => r.cells.length);
+      const maxCols = Math.max(...colCounts);
+      if (maxCols < 2) return;
+
+      // 构建 Markdown 表格
+      const mdRows = [];
+      rows.forEach((row, rowIdx) => {
+        const texts = row.cells.map(c => escapeMd(c.text));
+        // 补齐缺失的列
+        while (texts.length < maxCols) texts.push('');
+        mdRows.push(`| ${texts.join(' | ')} |`);
+        if (rowIdx === 0) {
+          mdRows.push(`| ${texts.map(() => '---').join(' | ')} |`);
+        }
+      });
+
+      const md = mdRows.join('\n');
+
+      // 获取表格前面的标题/注释
+      const prev = container.previousElementSibling;
+      const heading = prev ? axureText(prev) : '';
+      const title = heading && heading.length < 50
+        ? heading
+        : `字段表`;
+
+      results.push({
+        type: 'axure-table',
+        heading: title,
+        rows: rows.length,
+        cols: maxCols,
+        markdown: `### ${title}\n\n${md}`,
+        text: rows.map(r => r.cells.map(c => c.text).join(' | ')).join('; ').substring(0, 200),
+      });
+    });
+
     return results;
   }
 
-  /** 将任意 HTML 元素转换为 Markdown */
-  function elementToMarkdown(el) {
-    if (!el) return { markdown: '', type: 'empty', text: '' };
-
-    const tag = el.tagName.toLowerCase();
-
-    // 1. 表格
-    if (tag === 'table') {
-      const md = tableToMarkdown(el);
-      if (md) {
-        return { markdown: md, type: 'table', text: el.innerText.trim().substring(0, 200) };
-      }
+  /** 从任意元素提取 Axure 表格（用于拾取模式） */
+  function extractAxureTableFromElement(el) {
+    // 如果 el 本身就是表格容器或 table_cell
+    if (el.classList.contains('ax_default') && el.querySelector('.ax_default.table_cell')) {
+      return findAxureTables(el);
     }
-
-    // 2. 如果元素直接包含表格（例如 div 包裹 table）
-    const innerTable = el.querySelector('table');
-    if (innerTable) {
-      const md = tableToMarkdown(innerTable);
-      if (md) {
-        return { markdown: md, type: 'table', text: innerTable.innerText.trim().substring(0, 200) };
-      }
+    if (el.classList.contains('table_cell')) {
+      // 从父容器提取
+      const parent = el.closest('.ax_default') || el.parentElement;
+      return findAxureTables(parent);
     }
-
-    // 3. 检查 div 模拟表格
-    const divTableMds = extractDivTables(el);
-    if (divTableMds.length > 0) {
-      return { markdown: divTableMds[0], type: 'table', text: el.innerText.trim().substring(0, 200) };
+    // 检查 el 内部是否包含表格
+    const innerTables = el.querySelectorAll('.ax_default.table_cell');
+    if (innerTables.length >= 4) {
+      const parent = innerTables[0].closest('.ax_default') || innerTables[0].parentElement;
+      if (parent) return findAxureTables(parent);
     }
-
-    // 4. 列表
-    if (['ul', 'ol'].includes(tag)) {
-      const items = el.querySelectorAll('li');
-      const lines = Array.from(items).map((li, i) => {
-        const prefix = tag === 'ol' ? `${i + 1}.` : '-';
-        return `${prefix} ${li.innerText.trim()}`;
-      });
-      if (lines.length > 0) {
-        return { markdown: lines.join('\n'), type: 'list', text: el.innerText.trim().substring(0, 200) };
-      }
-    }
-
-    // 5. 代码块
-    if (['code', 'pre'].includes(tag)) {
-      return { markdown: '```\n' + el.innerText.trim() + '\n```', type: 'code', text: el.innerText.trim().substring(0, 200) };
-    }
-
-    // 6. 图片
-    if (tag === 'img') {
-      const src = el.src || '';
-      const alt = el.alt || '';
-      return { markdown: `![${alt}](${src})`, type: 'image', text: alt || src };
-    }
-
-    // 7. 链接
-    if (tag === 'a' && el.href) {
-      return { markdown: `[${el.innerText.trim()}](${el.href})`, type: 'link', text: el.innerText.trim() };
-    }
-
-    // 8. 标题
-    if (/^h[1-6]$/.test(tag)) {
-      const level = tag[1];
-      return { markdown: `${'#'.repeat(parseInt(level))} ${el.innerText.trim()}`, type: 'heading', text: el.innerText.trim() };
-    }
-
-    // 9. 段落或普通文本块
-    if (tag === 'p' || tag === 'div' || tag === 'section' || tag === 'article') {
-      const text = el.innerText.trim();
-      // 检测内部是否有结构化内容
-      const innerHeadings = el.querySelectorAll('h1, h2, h3, h4, h5, h6');
-      if (innerHeadings.length > 0) {
-        // 递归提取子结构
-        return extractStructuredElement(el);
-      }
-      if (text.length > 0) {
-        return { markdown: text, type: 'text', text: text.substring(0, 200) };
-      }
-    }
-
-    // 10. 默认：提取所有文本
-    const text = el.innerText.trim();
-    if (text.length > 0) {
-      return { markdown: text, type: 'text', text: text.substring(0, 200) };
-    }
-
-    return { markdown: '', type: 'empty', text: '' };
+    return [];
   }
 
-  /** 提取结构化元素（含子标题、段落、表格） */
-  function extractStructuredElement(container) {
-    const parts = [];
-    const children = container.children;
+  // ==================== 通用内容提取 ====================
 
-    if (children.length === 0) {
-      const text = container.innerText.trim();
-      if (text) parts.push(text);
-    } else {
-      Array.from(children).forEach(child => {
-        const result = elementToMarkdown(child);
-        if (result.markdown) parts.push(result.markdown);
-      });
-    }
-
-    return {
-      markdown: parts.join('\n\n'),
-      type: 'structured',
-      text: container.innerText.trim().substring(0, 200),
-    };
-  }
-
-  // ---- 拾取模式 ----
-
-  function createPickerUI() {
-    // 高亮框
-    pickerHighlight = document.createElement('div');
-    pickerHighlight.id = '__lh_picker_highlight__';
-    Object.assign(pickerHighlight.style, {
-      position: 'fixed',
-      pointerEvents: 'none',
-      zIndex: '2147483646',
-      border: '2px solid #f08c00',
-      background: 'rgba(240, 140, 0, 0.08)',
-      borderRadius: '4px',
-      transition: 'all 0.1s ease',
-      display: 'none',
-    });
-    document.body.appendChild(pickerHighlight);
-
-    // 信息标签
-    pickerOverlay = document.createElement('div');
-    pickerOverlay.id = '__lh_picker_overlay__';
-    Object.assign(pickerOverlay.style, {
-      position: 'fixed',
-      pointerEvents: 'none',
-      zIndex: '2147483647',
-      background: '#f08c00',
-      color: '#fff',
-      fontSize: '11px',
-      padding: '2px 8px',
-      borderRadius: '3px',
-      fontFamily: 'monospace',
-      display: 'none',
-    });
-    document.body.appendChild(pickerOverlay);
-  }
-
-  function removePickerUI() {
-    if (pickerHighlight) { pickerHighlight.remove(); pickerHighlight = null; }
-    if (pickerOverlay) { pickerOverlay.remove(); pickerOverlay = null; }
-  }
-
-  let pickerTarget = null;
-
-  function onPickerMouseMove(e) {
-    const el = document.elementFromPoint(e.clientX, e.clientY);
-    if (!el || el === pickerHighlight || el === pickerOverlay || el.id?.startsWith('__lh_picker')) return;
-
-    pickerTarget = el;
-    const rect = el.getBoundingClientRect();
-
-    if (pickerHighlight) {
-      pickerHighlight.style.display = 'block';
-      pickerHighlight.style.left = rect.left + 'px';
-      pickerHighlight.style.top = rect.top + 'px';
-      pickerHighlight.style.width = rect.width + 'px';
-      pickerHighlight.style.height = rect.height + 'px';
-    }
-
-    if (pickerOverlay) {
-      pickerOverlay.style.display = 'block';
-      pickerOverlay.style.left = rect.left + 'px';
-      pickerOverlay.style.top = (rect.top - 22) + 'px';
-      const tag = el.tagName.toLowerCase();
-      const id = el.id ? `#${el.id}` : '';
-      const cls = Array.from(el.classList).slice(0, 2).map(c => `.${c}`).join('');
-      const info = el.innerText.trim().substring(0, 40).replace(/\n/g, ' ');
-      pickerOverlay.textContent = `<${tag}${id}${cls}> · ${info}`;
-      if (pickerOverlay.style.top < '0') {
-        pickerOverlay.style.top = (rect.bottom + 4) + 'px';
-      }
-    }
-  }
-
-  function onPickerClick(e) {
-    if (!pickerTarget) return;
-    e.preventDefault();
-    e.stopPropagation();
-
-    const result = elementToMarkdown(pickerTarget);
-
-    // 获取选择器路径
-    const path = getElementSelector(pickerTarget);
-
-    // 关闭拾取模式
-    deactivatePicker();
-
-    // 发送结果回 popup
-    chrome.runtime.sendMessage({
-      action: 'picker-result',
-      data: {
-        markdown: result.markdown,
-        type: result.type,
-        text: result.text,
-        selector: path,
-        tag: pickerTarget.tagName.toLowerCase(),
-        id: pickerTarget.id || '',
-        classes: Array.from(pickerTarget.classList).join('.'),
-      },
-    });
-  }
-
-  function onPickerKeyDown(e) {
-    if (e.key === 'Escape') {
-      deactivatePicker();
-      chrome.runtime.sendMessage({ action: 'picker-cancelled' });
-    }
-  }
-
-  function activatePicker() {
-    if (pickerActive) return;
-    pickerActive = true;
-
-    createPickerUI();
-
-    document.addEventListener('mousemove', onPickerMouseMove, true);
-    document.addEventListener('click', onPickerClick, true);
-    document.addEventListener('keydown', onPickerKeyDown, true);
-
-    // 防止页面滚动干扰
-    document.body.style.cursor = 'crosshair';
-    document.body.style.userSelect = 'none';
-
-    console.log('[蓝湖提取器] 拾取模式已激活 — 悬停查看元素，点击提取，ESC 退出');
-  }
-
-  function deactivatePicker() {
-    if (!pickerActive) return;
-    pickerActive = false;
-
-    document.removeEventListener('mousemove', onPickerMouseMove, true);
-    document.removeEventListener('click', onPickerClick, true);
-    document.removeEventListener('keydown', onPickerKeyDown, true);
-
-    document.body.style.cursor = '';
-    document.body.style.userSelect = '';
-
-    removePickerUI();
-    pickerTarget = null;
-
-    console.log('[蓝湖提取器] 拾取模式已退出');
-  }
-
-  /** 生成 CSS 选择器路径 */
-  function getElementSelector(el) {
-    if (!el || el === document.body) return 'body';
-    const path = [];
-    let current = el;
-    while (current && current !== document.body && current !== document.documentElement) {
-      const tag = current.tagName.toLowerCase();
-      let selector = tag;
-      if (current.id) {
-        selector = `#${current.id}`;
-        path.unshift(selector);
-        break;
-      }
-      if (current.className && typeof current.className === 'string') {
-        const classes = current.className.trim().split(/\s+/).filter(Boolean).slice(0, 2);
-        if (classes.length > 0) selector += '.' + classes.join('.');
-      }
-      // 添加 nth-child
-      const parent = current.parentElement;
-      if (parent) {
-        const siblings = Array.from(parent.children).filter(c => c.tagName === current.tagName);
-        if (siblings.length > 1) {
-          const idx = siblings.indexOf(current) + 1;
-          selector += `:nth-child(${idx})`;
-        }
-      }
-      path.unshift(selector);
-      current = current.parentElement;
-    }
-    return path.join(' > ');
-  }
-
-  // ---- 页面内容提取 ----
-
-  function elementToMarkdown(el) {
-    if (!el) return { markdown: '', type: 'empty', text: '' };
-
-    const tag = el.tagName.toLowerCase();
-
-    // 1. 表格
-    if (tag === 'table') {
-      const md = tableToMarkdown(el);
-      if (md) {
-        return { markdown: `### 选中表格\n\n${md}`, type: 'table', text: el.innerText.trim().substring(0, 200) };
-      }
-    }
-
-    // 2. 包含表格的元素
-    const innerTable = el.querySelector('table');
-    if (innerTable) {
-      const md = tableToMarkdown(innerTable);
-      if (md) {
-        return { markdown: `### 选中内容（含表格）\n\n${md}`, type: 'table', text: innerTable.innerText.trim().substring(0, 200) };
-      }
-    }
-
-    // 3. div 模拟表格
-    const divTableMds = extractDivTables(el);
-    if (divTableMds.length > 0) {
-      return { markdown: `### 选中数据区域\n\n${divTableMds[0]}`, type: 'table', text: el.innerText.trim().substring(0, 200) };
-    }
-
-    // 4. 检查子元素中的模拟表格
-    const subDivs = el.querySelectorAll('div[class*="grid"], div[class*="row"]');
-    for (const div of subDivs) {
-      const mds = extractDivTables(div);
-      if (mds.length > 0) {
-        return { markdown: `### 选中区域\n\n${mds[0]}`, type: 'table', text: div.innerText.trim().substring(0, 200) };
-      }
-    }
-
-    // 5. 列表
-    if (['ul', 'ol'].includes(tag)) {
-      const items = el.querySelectorAll('li');
-      const lines = Array.from(items).map((li, i) => {
-        const prefix = tag === 'ol' ? `${i + 1}.` : '-';
-        return `${prefix} ${li.innerText.trim()}`;
-      });
-      if (lines.length > 0) {
-        return { markdown: lines.join('\n'), type: 'list', text: el.innerText.trim().substring(0, 200) };
-      }
-    }
-
-    // 6. 代码
-    if (['code', 'pre'].includes(tag)) {
-      return { markdown: '```\n' + el.innerText.trim() + '\n```', type: 'code', text: el.innerText.trim().substring(0, 200) };
-    }
-
-    // 7. 图片
-    if (tag === 'img') {
-      return { markdown: `![${el.alt || ''}](${el.src || ''})`, type: 'image', text: el.alt || el.src || '' };
-    }
-
-    // 8. 结构化内容（含标题+文本）
-    const headings = el.querySelectorAll('h1, h2, h3, h4, h5, h6');
-    if (headings.length > 0 || el.children.length >= 2) {
-      return extractStructuredElement(el);
-    }
-
-    // 9. 纯文本
-    const text = el.innerText.trim();
-    if (text.length > 0) {
-      return { markdown: text, type: 'text', text: text.substring(0, 200) };
-    }
-
-    return { markdown: '', type: 'empty', text: '' };
-  }
-
-  function extractStructuredElement(container) {
-    const parts = [];
-    const children = container.children;
-
-    if (children.length === 0) {
-      const text = container.innerText.trim();
-      if (text) parts.push(text);
-    } else {
-      Array.from(children).forEach(child => {
-        const result = elementToMarkdown(child);
-        if (result.markdown) parts.push(result.markdown);
-      });
-    }
-
-    return {
-      markdown: `### 选中内容\n\n${parts.join('\n\n')}`,
-      type: 'structured',
-      text: container.innerText.trim().substring(0, 200),
-    };
-  }
-
-  // ---- 全页提取 ----
-
+  /** 从 document 提取所有结构化内容 */
   function extractFromDocument(doc) {
     const sections = [];
-    const container = doc.body;
-    if (!container) return { sections: [], markdown: '' };
+    const root = doc.body || doc;
+    if (!root) return { sections: [], markdown: '' };
 
-    const tables = container.querySelectorAll('table');
-    tables.forEach((table, idx) => {
+    // 1. Axure 表格
+    const axeTables = findAxureTables(root);
+    axeTables.forEach(t => sections.push(t));
+
+    // 2. 真正的 HTML <table>（备用）
+    const htmlTables = root.querySelectorAll('table');
+    htmlTables.forEach((table, idx) => {
       const rows = table.querySelectorAll('tr');
       if (rows.length < 2) return;
-      const md = tableToMarkdown(table);
-      if (md) {
-        const prev = table.previousElementSibling;
-        const heading = prev && ['H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'P'].includes(prev.tagName)
-          ? prev.innerText.trim()
-          : `表格 ${idx + 1}`;
-        sections.push({ type: 'table', heading, markdown: `### ${heading}\n\n${md}` });
-      }
+      const mdRows = [];
+      rows.forEach((row, ri) => {
+        const cells = row.querySelectorAll('th, td');
+        const texts = Array.from(cells).map(c => escapeMd(c.innerText.trim()));
+        mdRows.push(`| ${texts.join(' | ')} |`);
+        if (ri === 0) mdRows.push(`| ${texts.map(() => '---').join(' | ')} |`);
+      });
+      const md = mdRows.join('\n');
+      sections.push({
+        type: 'html-table',
+        heading: `表格 ${idx + 1}`,
+        markdown: `### 表格 ${idx + 1}\n\n${md}`,
+      });
     });
 
-    const divTables = extractDivTables(container);
-    divTables.forEach((md, idx) => {
-      sections.push({ type: 'table', heading: `数据表格 ${idx + 1}`, markdown: `### 数据表格 ${idx + 1}\n\n${md}` });
-    });
-
-    const headings = container.querySelectorAll('h1, h2, h3, h4, h5, h6');
+    // 3. 标题 (heading_11 / h1-h6)
+    const headings = root.querySelectorAll('.ax_default.heading_11, h1, h2, h3, h4, h5, h6, [class*="heading"]');
     const seenTexts = new Set();
     headings.forEach(h => {
-      const text = h.innerText.trim();
+      const text = axureText(h) || h.innerText.trim();
       if (!text || seenTexts.has(text) || text.length < 2) return;
       seenTexts.add(text);
+
       const following = [];
       let next = h.nextElementSibling;
-      while (next && !/^H[1-6]$/.test(next.tagName)) {
-        if (['P', 'DIV', 'LI'].includes(next.tagName)) {
-          const pt = next.innerText.trim();
-          if (pt.length > 10) following.push(pt);
-        }
+      let guard = 0;
+      while (next && !/^H[1-6]$/.test(next.tagName) && !next.classList.contains('heading_11') && guard < 5) {
+        const t = axureText(next) || next.innerText.trim();
+        if (t.length > 10) following.push(t);
         next = next.nextElementSibling;
+        guard++;
       }
-      if (following.length > 0) {
-        sections.push({ type: 'text', heading: text, markdown: `## ${text}\n\n${following.join('\n\n')}` });
-      } else {
-        sections.push({ type: 'heading', heading: text, markdown: `## ${text}` });
-      }
+
+      sections.push({
+        type: 'heading',
+        heading: text,
+        markdown: following.length > 0 ? `## ${text}\n\n${following.join('\n\n')}` : `## ${text}`,
+      });
     });
 
-    const annotations = container.querySelectorAll('[class*="annotation"], [class*="comment"], [class*="note"], [class*="remark"]');
-    if (annotations.length > 0) {
-      const texts = Array.from(annotations).map(a => a.innerText.trim()).filter(t => t.length > 5);
-      if (texts.length > 0) {
-        sections.push({ type: 'annotation', heading: '页面标注', markdown: `## 页面标注/注释\n\n${texts.join('\n\n---\n\n')}` });
+    // 4. 复选框 (checkbox)
+    const checkboxes = root.querySelectorAll('.ax_default.checkbox, [class*="checkbox"]');
+    if (checkboxes.length > 0) {
+      const items = Array.from(checkboxes)
+        .map(cb => axureText(cb))
+        .filter(t => t.length > 0);
+      if (items.length > 0) {
+        sections.push({
+          type: 'checkbox',
+          heading: '选项',
+          markdown: `## 选项\n\n${items.map(t => `- [ ] ${t}`).join('\n')}`,
+        });
       }
     }
 
-    if (sections.length === 0 && container.innerText) {
-      const text = container.innerText.trim();
-      if (text.length > 50) {
-        sections.push({ type: 'text', heading: '页面原文', markdown: text.substring(0, 30000) });
-      }
+    // 5. 段落/文本块 (paragraph1 / shape)
+    const paras = root.querySelectorAll('.ax_default.paragraph1, .ax_default.shape');
+    const paraTexts = Array.from(paras)
+      .map(p => axureText(p))
+      .filter(t => t.length > 15);
+
+    if (paraTexts.length > 0 && sections.filter(s => s.type !== 'axure-table').length === 0) {
+      sections.push({
+        type: 'text',
+        heading: '说明',
+        markdown: paraTexts.join('\n\n'),
+      });
     }
 
+    // 构建 Markdown
     const title = doc.title || '未知页面';
     const lines = [
       `# ${title}`,
@@ -573,11 +282,200 @@
     return { sections, markdown: lines.join('\n') };
   }
 
+  // ==================== 拾取模式 ====================
+
+  function createPickerUI() {
+    pickerHighlight = document.createElement('div');
+    pickerHighlight.id = '__lh_picker_h';
+    Object.assign(pickerHighlight.style, {
+      position: 'fixed', pointerEvents: 'none', zIndex: '2147483646',
+      border: '2px solid #f08c00', background: 'rgba(240, 140, 0, 0.08)',
+      borderRadius: '4px', transition: 'all 0.05s ease', display: 'none',
+    });
+    document.body.appendChild(pickerHighlight);
+
+    pickerOverlay = document.createElement('div');
+    pickerOverlay.id = '__lh_picker_o';
+    Object.assign(pickerOverlay.style, {
+      position: 'fixed', pointerEvents: 'none', zIndex: '2147483647',
+      background: '#f08c00', color: '#fff', fontSize: '11px',
+      padding: '2px 8px', borderRadius: '3px', fontFamily: 'monospace',
+      whiteSpace: 'nowrap', display: 'none',
+    });
+    document.body.appendChild(pickerOverlay);
+  }
+
+  function removePickerUI() {
+    if (pickerHighlight) { pickerHighlight.remove(); pickerHighlight = null; }
+    if (pickerOverlay) { pickerOverlay.remove(); pickerOverlay = null; }
+  }
+
+  function onPickerMove(e) {
+    // 用 elementFromPoint + 忽略我们的 UI 元素
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (!el || el === pickerHighlight || el === pickerOverlay ||
+        el.id === '__lh_picker_h' || el.id === '__lh_picker_o') {
+      return;
+    }
+
+    pickerTarget = el;
+    const rect = el.getBoundingClientRect();
+    if (!rect || rect.width === 0) return;
+
+    if (pickerHighlight) {
+      pickerHighlight.style.display = 'block';
+      pickerHighlight.style.left = rect.left + 'px';
+      pickerHighlight.style.top = rect.top + 'px';
+      pickerHighlight.style.width = rect.width + 'px';
+      pickerHighlight.style.height = rect.height + 'px';
+    }
+
+    if (pickerOverlay) {
+      const tag = el.tagName.toLowerCase();
+      const id = el.id ? `#${el.id}` : '';
+      const cls = Array.from(el.classList).slice(0, 3).join('.');
+      const text = (axureText(el) || el.innerText || '').substring(0, 50).replace(/\n/g, ' ');
+      pickerOverlay.textContent = `<${tag}${id ? '#'+id : ''}> ${text}`;
+
+      let top = rect.top - 24;
+      if (top < 0) top = rect.bottom + 4;
+      pickerOverlay.style.left = rect.left + 'px';
+      pickerOverlay.style.top = top + 'px';
+      pickerOverlay.style.display = 'block';
+    }
+  }
+
+  function onPickerClick(e) {
+    if (!pickerTarget) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+
+    const el = pickerTarget;
+    let result = null;
+
+    // 1. 尝试以 Axure 表格提取
+    const tables = extractAxureTableFromElement(el);
+    if (tables.length > 0) {
+      result = tables[0];
+    }
+
+    // 2. 如果没提取到表格，用通用方式
+    if (!result) {
+      const text = axureText(el) || el.innerText.trim();
+      const tag = el.tagName.toLowerCase();
+
+      if (el.classList.contains('table_cell')) {
+        // 单个单元格没意义，提取整个表格
+        const parent = el.closest('.ax_default');
+        if (parent) {
+          const parentTables = extractAxureTableFromElement(parent);
+          if (parentTables.length > 0) result = parentTables[0];
+        }
+      }
+
+      if (!result) {
+        result = {
+          type: tag === 'table' ? 'html-table' : 'text',
+          heading: text.substring(0, 40),
+          markdown: text,
+          text: text.substring(0, 200),
+        };
+      }
+    }
+
+    const selector = getElementSelector(el);
+    deactivatePicker();
+
+    // 发送结果
+    chrome.runtime.sendMessage({
+      action: 'picker-result',
+      data: {
+        markdown: result.markdown,
+        type: result.type,
+        text: result.text,
+        selector: selector,
+        tag: el.tagName.toLowerCase(),
+        id: el.id || '',
+        classes: Array.from(el.classList).join('.'),
+      },
+    });
+  }
+
+  function onPickerKey(e) {
+    if (e.key === 'Escape') {
+      deactivatePicker();
+      chrome.runtime.sendMessage({ action: 'picker-cancelled' });
+    }
+  }
+
+  function activatePicker() {
+    if (pickerActive) return;
+    pickerActive = true;
+
+    createPickerUI();
+
+    // 使用捕获阶段确保优先处理
+    onPickerMoveHandler = (e) => onPickerMove(e);
+    onPickerClickHandler = (e) => onPickerClick(e);
+    onPickerKeyHandler = (e) => onPickerKey(e);
+
+    document.addEventListener('mousemove', onPickerMoveHandler, true);
+    document.addEventListener('click', onPickerClickHandler, true);
+    document.addEventListener('keydown', onPickerKeyHandler, true);
+
+    document.body.style.cursor = 'crosshair';
+    document.body.style.userSelect = 'none';
+
+    console.log('[蓝湖提取器] 拾取模式已激活');
+  }
+
+  function deactivatePicker() {
+    if (!pickerActive) return;
+    pickerActive = false;
+
+    if (onPickerMoveHandler) document.removeEventListener('mousemove', onPickerMoveHandler, true);
+    if (onPickerClickHandler) document.removeEventListener('click', onPickerClickHandler, true);
+    if (onPickerKeyHandler) document.removeEventListener('keydown', onPickerKeyHandler, true);
+
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+
+    removePickerUI();
+    pickerTarget = null;
+    console.log('[蓝湖提取器] 拾取模式已退出');
+  }
+
+  function getElementSelector(el) {
+    const parts = [];
+    let cur = el;
+    while (cur && cur !== document.body && cur !== document.documentElement) {
+      const tag = cur.tagName.toLowerCase();
+      let sel = tag;
+      if (cur.id) { sel = '#' + cur.id; parts.unshift(sel); break; }
+      const cls = Array.from(cur.classList).filter(c => !c.startsWith('__lh_')).slice(0, 2);
+      if (cls.length) sel += '.' + cls.join('.');
+      const parent = cur.parentElement;
+      if (parent) {
+        const siblings = Array.from(parent.children).filter(c => c.tagName === cur.tagName);
+        if (siblings.length > 1) {
+          const idx = siblings.indexOf(cur) + 1;
+          sel += `:nth-child(${idx})`;
+        }
+      }
+      parts.unshift(sel);
+      cur = cur.parentElement;
+    }
+    return parts.join(' > ');
+  }
+
+  // ==================== 页面提取 API ====================
+
   function fullExtract() {
     const main = extractFromDocument(document);
     return {
       frame: FRAME_CTX,
-      isAxureContent: isAxureContent(document),
+      isAxureContent: isAxureContent(),
       pages: [{ frame: FRAME_CTX, title: document.title, sections: main.sections, markdown: main.markdown }],
       combinedMarkdown: main.markdown,
     };
@@ -587,48 +485,55 @@
     const result = extractFromDocument(document);
     return {
       frame: FRAME_CTX,
-      isAxureContent: isAxureContent(document),
+      isAxureContent: isAxureContent(),
       pages: [{ frame: FRAME_CTX, title: document.title, sections: result.sections, markdown: result.markdown }],
       combinedMarkdown: result.markdown,
     };
   }
 
+  function isAxureContent() {
+    return !!(
+      document.querySelector('frameset') ||
+      document.querySelector('[class*="axure" i]') ||
+      document.querySelector('[id*="axure" i]') ||
+      document.querySelector('[data-gen-guid]') ||
+      document.querySelector('.ax_default') ||
+      /axure/i.test(document.querySelector('meta[name="generator"]')?.content || '')
+    );
+  }
+
   function getDiagnostics() {
     return {
       frame: FRAME_CTX,
-      isAxure: isAxureContent(document),
+      isAxure: isAxureContent(),
       title: document.title,
       bodySize: document.body?.innerText?.length || 0,
-      tableCount: document.querySelectorAll('table').length,
+      tableCells: document.querySelectorAll('.ax_default.table_cell').length,
+      axureWidgets: document.querySelectorAll('.ax_default').length,
     };
   }
 
-  // ---- 消息处理 ----
+  // ==================== 消息处理 ====================
 
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     switch (request.action) {
-      case 'extract-axure': {
+      case 'extract-axure':
         if (FRAME_CTX === 'top') sendResponse({ status: 'ok', data: fullExtract() });
         else sendResponse({ status: 'ok', data: simpleExtract() });
         break;
-      }
-
       case 'ping':
         sendResponse({ pong: true, frame: FRAME_CTX });
         break;
-
       case 'diagnose-me':
         sendResponse({ status: 'ok', data: getDiagnostics() });
         break;
-
       case 'start-picker':
         activatePicker();
-        sendResponse({ status: 'ok', message: '拾取模式已激活' });
+        sendResponse({ status: 'ok' });
         break;
-
       case 'stop-picker':
         deactivatePicker();
-        sendResponse({ status: 'ok', message: '拾取模式已退出' });
+        sendResponse({ status: 'ok' });
         break;
     }
     return true;
