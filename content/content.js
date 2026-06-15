@@ -261,6 +261,7 @@
   function startPick(mId, field) {
     activePickField = { moduleId: mId, field };
     pickMode = true;
+    console.log('[蓝湖] startPick:', mId, field, 'activePickField:', activePickField);
     setStatus(`🎯 点击页面元素拾取「${field === 'title' ? '标题' : '内容'}」`);
     document.body.style.cursor = 'crosshair';
     document.body.style.userSelect = 'none';
@@ -272,14 +273,17 @@
   }
 
   function finishPick(md) {
-    if (!activePickField) return;
+    if (!activePickField) { console.log('[蓝湖] finishPick: no activePickField'); return; }
     const { moduleId, field } = activePickField;
+    console.log('[蓝湖] finishPick:', moduleId, field, 'md length:', md?.length);
     const m = modules.find(x => x.id === moduleId);
     if (m) {
       m[field] = md;
-      // 更新输入框
-      const inp = document.getElementById(field === 'title' ? `__lh_mt_${moduleId}` : `__lh_mc_${moduleId}`);
+      const inpId = field === 'title' ? `__lh_mt_${moduleId}` : `__lh_mc_${moduleId}`;
+      const inp = document.getElementById(inpId);
+      console.log('[蓝湖] finishPick inp:', inpId, !!inp);
       if (inp) {
+        inp.value = md;
         inp.value = md;
         inp.style.borderColor = '#373a40';
       }
@@ -792,12 +796,16 @@ th{background:#25262b}code{background:#25262b;padding:2px 5px;border-radius:3px}
 
       // 拾取模式：提取元素填入当前字段
       if (pickMode && activePickField) {
+        console.log('[蓝湖] pickMode click, activePickField:', activePickField, 'el:', el.tagName);
         const container = findContainer(el);
         const target = container.el || el;
+        console.log('[蓝湖] pick target:', target.tagName);
         const result = extractFromEl(target);
+        console.log('[蓝湖] extract result:', result?.type, result?.markdown?.slice(0, 60));
         if (result.markdown) {
           finishPick(result.markdown);
           hideHighlight();
+          console.log('[蓝湖] finishPick done');
         } else {
           setStatus('⚠️ 所选区域无内容');
         }
