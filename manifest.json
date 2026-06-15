@@ -5,7 +5,6 @@
   "description": "从蓝湖 Axure 原型页面中提取产品需求表格和内容，一键导出 Markdown",
   "permissions": [
     "activeTab",
-    "downloads",
     "storage",
     "scripting",
     "webNavigation"

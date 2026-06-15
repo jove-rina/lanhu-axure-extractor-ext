@@ -146,6 +146,11 @@ header h1 {
   background: var(--surface);
 }
 
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
 .btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -173,6 +178,14 @@ header h1 {
   font-weight: 400;
   color: var(--text-muted);
   font-size: 12px;
+}
+
+.preview-meta {
+  padding: 4px 12px;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: rgba(0,0,0,0.2);
+  border-bottom: 1px solid var(--border);
 }
 
 .preview-body {
