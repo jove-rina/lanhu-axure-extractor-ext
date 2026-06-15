@@ -240,46 +240,48 @@
       });
     }
 
-    // 容器导航：父级 / 子级
-    document.getElementById('__lh_f_up')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (currentSelectedEl && currentSelectedEl.parentElement && currentSelectedEl.parentElement !== document.body) {
-        // 直接使用 DOM 的 parentElement 导航
-        currentSelectedEl = currentSelectedEl.parentElement;
-        // 同步重建 navPath
-        navPath = buildPath(currentSelectedEl);
-        navIndex = Math.max(1, Math.min(navPath.indexOf(currentSelectedEl), Math.floor(navPath.length / 2), navPath.length - 2));
-        console.log('[蓝湖] ↑父级 → 新元素:', currentSelectedEl.tagName, 'navPath:', navPath.length, 'navIndex:', navIndex);
-        applyNavSelection();
-      } else if (currentSelectedEl && currentSelectedEl.parentElement === document.body) {
-        setStatus('⚠️ 已在最顶层');
-      } else {
-        setStatus('⚠️ 未选择任何元素，请先点击页面');
-      }
-    });
-    document.getElementById('__lh_f_dn')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (currentSelectedEl) {
-        // 找当前元素的子元素中最近的一个 Axure 组件
-        const children = Array.from(currentSelectedEl.children).filter(c =>
-          c.tagName !== 'BR' && !c.id?.startsWith?.('__lh_')
-        );
-        // 优先选择之前在 navPath 中记过的下一级
-        const curIdx = navPath.indexOf(currentSelectedEl);
-        if (curIdx >= 0 && curIdx < navPath.length - 1) {
-          currentSelectedEl = navPath[curIdx + 1];
-        } else if (children.length > 0) {
-          currentSelectedEl = children[0];
+    // 容器导航：父级 / 子级（事件代理方式）
+    floater.addEventListener('click', (e) => {
+      const target = e.target;
+      if (target.id === '__lh_f_up') {
+        e.stopPropagation();
+        console.log('[蓝湖] ↑父级 按钮点击');
+        if (currentSelectedEl && currentSelectedEl.parentElement && currentSelectedEl.parentElement !== document.body) {
+          currentSelectedEl = currentSelectedEl.parentElement;
+          navPath = buildPath(currentSelectedEl);
+          navIndex = Math.max(1, Math.min(navPath.indexOf(currentSelectedEl), Math.floor(navPath.length / 2), navPath.length - 2));
+          console.log('[蓝湖] ↑父级 →', currentSelectedEl.tagName, 'navPath:', navPath.length);
+          applyNavSelection();
+        } else if (!currentSelectedEl) {
+          setStatus('⚠️ 请先点击页面选择元素');
         } else {
-          setStatus('⚠️ 已到最底层');
-          return;
+          setStatus('⚠️ 已在最顶层');
         }
-        navPath = buildPath(currentSelectedEl);
-        navIndex = Math.max(1, Math.min(navPath.indexOf(currentSelectedEl), Math.floor(navPath.length / 2), navPath.length - 2));
-        console.log('[蓝湖] ↓子级 → 新元素:', currentSelectedEl.tagName, 'navPath:', navPath.length, 'navIndex:', navIndex);
-        applyNavSelection();
-      } else {
-        setStatus('⚠️ 未选择任何元素，请先点击页面');
+      } else if (target.id === '__lh_f_dn') {
+        e.stopPropagation();
+        console.log('[蓝湖] ↓子级 按钮点击');
+        if (currentSelectedEl) {
+          const curIdx = navPath.indexOf(currentSelectedEl);
+          if (curIdx >= 0 && curIdx < navPath.length - 1) {
+            currentSelectedEl = navPath[curIdx + 1];
+          } else {
+            const children = Array.from(currentSelectedEl.children).filter(c =>
+              c.tagName !== 'BR' && !c.id?.startsWith?.('__lh_')
+            );
+            if (children.length > 0) {
+              currentSelectedEl = children[0];
+            } else {
+              setStatus('⚠️ 已到最底层');
+              return;
+            }
+          }
+          navPath = buildPath(currentSelectedEl);
+          navIndex = Math.max(1, Math.min(navPath.indexOf(currentSelectedEl), Math.floor(navPath.length / 2), navPath.length - 2));
+          console.log('[蓝湖] ↓子级 →', currentSelectedEl.tagName, 'navPath:', navPath.length);
+          applyNavSelection();
+        } else {
+          setStatus('⚠️ 请先点击页面选择元素');
+        }
       }
     });
   }
