@@ -11,6 +11,11 @@
   const FRAME_CTX = getFrameContext();
   console.log(`[蓝湖提取器] 已加载 — ${FRAME_CTX}`);
 
+  // 通知 background：此 tab 的内容脚本已重新加载，重置拾取状态
+  if (FRAME_CTX === 'top') {
+    chrome.runtime.sendMessage({ action: 'content-reloaded' }).catch(() => {});
+  }
+
   // ==================== 工具 ====================
 
   function getFrameContext() {

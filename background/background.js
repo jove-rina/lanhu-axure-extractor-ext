@@ -1,6 +1,10 @@
 /**
  * 蓝湖 Axure 需求提取器 — 后台服务脚本
  */
+
+// ---- 拾取状态跟踪（跨 popup 生命周期） ----
+const pickerState = new Map(); // tabId → boolean
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // 提取：逐帧发送
   if (request.action === 'extract') {
@@ -24,10 +28,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return;
   }
 
-  // 启动捡取：向所有 frame 广播
+  // 启动捡取：向所有 frame 广播 + 记录状态
   if (request.action === 'start-picker') {
     const tabId = request.tabId;
     if (!tabId) { sendResponse({ error: 'no tab' }); return; }
+    pickerState.set(tabId, true);
     broadcastToFrames(tabId, { action: 'start-picker' }).then(sendResponse);
     return true;
   }
@@ -36,14 +41,29 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'stop-picker') {
     const tabId = request.tabId;
     if (!tabId) { sendResponse({ error: 'no tab' }); return; }
+    pickerState.set(tabId, false);
     broadcastToFrames(tabId, { action: 'stop-picker' }).then(sendResponse);
     return true;
   }
 
+  // 查询拾取状态（popup 打开时调用）
+  if (request.action === 'get-picker-state') {
+    const tabId = request.tabId;
+    if (!tabId) { sendResponse({ active: false }); return; }
+    sendResponse({ active: pickerState.get(tabId) === true });
+    return;
+  }
+
   // 捡取结果转发到 popup
   if (request.action === 'picker-result') {
-    // 来自 content script，sender.tab 有 tab id
-    // 转发给该 tab 的 popup（如果有的话）
+    sendResponse({ status: 'ok' });
+    return;
+  }
+
+  // 内容脚本重载：重置该 tab 的拾取状态
+  if (request.action === 'content-reloaded') {
+    const tabId = sender.tab?.id;
+    if (tabId) pickerState.set(tabId, false);
     sendResponse({ status: 'ok' });
     return;
   }

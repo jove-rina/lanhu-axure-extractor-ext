@@ -292,6 +292,30 @@
         setStatus('⚠️ 内容脚本未加载，请刷新页面', 'error');
         DOM.previewBody.innerHTML = `<p class="empty-result">请刷新蓝湖页面后使用。</p>`;
       }
+
+      // 同步拾取状态：如果 background 记录该 tab 的拾取还在运行，恢复 UI
+      try {
+        const state = await chrome.runtime.sendMessage({ action: 'get-picker-state', tabId: tab.id });
+        if (state && state.active) {
+          pickerActive = true;
+          DOM.btnPicker.textContent = '⏹ 退出拾取';
+          DOM.btnPicker.classList.add('active');
+          setStatus('🎯 拾取模式已激活', 'busy');
+          DOM.previewBody.innerHTML = `<p class="hint" style="color:#2b8a3e;font-weight:600;">
+            🎯 拾取模式已在运行中（上次打开时未退出）<br><br>
+            <b>🖱 悬停预览</b> → 橙色高亮提示即将选中的范围<br>
+            <b>👆 点击</b> → 智能定位容器，一步到位<br>
+            <b>🔼 同处再点</b> → 升级到上一级容器<br>
+            <b>📎 追加按钮</b> → 开启后多选累加内容<br>
+            <b>👁 预览/源码</b> → 切换渲染视图<br>
+            <b>📷 截图</b> → 四种模式：🖥全屏 · 📄整页 · 🎯容器 · ➕多选<br><br>
+            结果在右下角浮动面板显示。<br>
+            按 <kbd style="background:#373a40;padding:2px 8px;border-radius:3px;">ESC</kbd> 退出。
+          </p>`;
+          DOM.previewCount.textContent = '拾取模式';
+          startPickerListener();
+        }
+      } catch {}
     } catch { DOM.currentPage.textContent = '无法获取'; }
   }
 
@@ -301,13 +325,6 @@
   DOM.btnDownload.addEventListener('click', download);
   DOM.btnCopy.addEventListener('click', copyToClipboard);
   DOM.btnDiagnose.addEventListener('click', diagnose);
-
-  // Popup 关闭时清理拾取模式
-  window.addEventListener('unload', () => {
-    if (pickerActive && tabId) {
-      chrome.runtime.sendMessage({ action: 'stop-picker', tabId }).catch(() => {});
-    }
-  });
 
   init();
 })();
