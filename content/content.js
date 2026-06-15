@@ -243,26 +243,43 @@
     // 容器导航：父级 / 子级
     document.getElementById('__lh_f_up')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      console.log('[蓝湖] ↑父级 click – navIndex:', navIndex, 'navPath.length:', navPath.length, 'canNav:', navIndex > 0);
-      if (navIndex > 0) {
-        navIndex--;
+      if (currentSelectedEl && currentSelectedEl.parentElement && currentSelectedEl.parentElement !== document.body) {
+        // 直接使用 DOM 的 parentElement 导航
+        currentSelectedEl = currentSelectedEl.parentElement;
+        // 同步重建 navPath
+        navPath = buildPath(currentSelectedEl);
+        navIndex = Math.max(1, Math.min(navPath.indexOf(currentSelectedEl), Math.floor(navPath.length / 2), navPath.length - 2));
+        console.log('[蓝湖] ↑父级 → 新元素:', currentSelectedEl.tagName, 'navPath:', navPath.length, 'navIndex:', navIndex);
         applyNavSelection();
-      } else if (navPath.length === 0) {
-        setStatus('⚠️ 未选择任何元素，请先点击页面');
+      } else if (currentSelectedEl && currentSelectedEl.parentElement === document.body) {
+        setStatus('⚠️ 已在最顶层');
       } else {
-        setStatus('⚠️ 已在最顶层，无法继续上移');
+        setStatus('⚠️ 未选择任何元素，请先点击页面');
       }
     });
     document.getElementById('__lh_f_dn')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      console.log('[蓝湖] ↓子级 click – navIndex:', navIndex, 'navPath.length:', navPath.length, 'canNav:', navIndex < navPath.length - 1);
-      if (navIndex < navPath.length - 1) {
-        navIndex++;
+      if (currentSelectedEl) {
+        // 找当前元素的子元素中最近的一个 Axure 组件
+        const children = Array.from(currentSelectedEl.children).filter(c =>
+          c.tagName !== 'BR' && !c.id?.startsWith?.('__lh_')
+        );
+        // 优先选择之前在 navPath 中记过的下一级
+        const curIdx = navPath.indexOf(currentSelectedEl);
+        if (curIdx >= 0 && curIdx < navPath.length - 1) {
+          currentSelectedEl = navPath[curIdx + 1];
+        } else if (children.length > 0) {
+          currentSelectedEl = children[0];
+        } else {
+          setStatus('⚠️ 已到最底层');
+          return;
+        }
+        navPath = buildPath(currentSelectedEl);
+        navIndex = Math.max(1, Math.min(navPath.indexOf(currentSelectedEl), Math.floor(navPath.length / 2), navPath.length - 2));
+        console.log('[蓝湖] ↓子级 → 新元素:', currentSelectedEl.tagName, 'navPath:', navPath.length, 'navIndex:', navIndex);
         applyNavSelection();
-      } else if (navPath.length === 0) {
-        setStatus('⚠️ 未选择任何元素，请先点击页面');
       } else {
-        setStatus('⚠️ 已在最底层，无法继续下移');
+        setStatus('⚠️ 未选择任何元素，请先点击页面');
       }
     });
   }
@@ -456,6 +473,7 @@
   // ---- 容器导航路径（替代点击升级） ----
   let navPath = [];       // 从选中元素到 body 的 DOM 路径（根下标 0，最深下标最大）
   let navIndex = -1;      // 当前选中的元素在路径中的下标
+  let currentSelectedEl = null; // 当前选中的元素引用（DOM 节点）
 
   // ---- 追加模式 ----
   let appendMode = false;
@@ -607,6 +625,7 @@
       if (info) info.textContent = navPath.length > 1 ? `⊞ (${navIndex + 1}/${navPath.length})` : '';
       return;
     }
+    currentSelectedEl = el;
 
     highlightEl(el);
     trackContainerRect(el);
@@ -816,6 +835,7 @@
     // 清理导航状态
     navPath = [];
     navIndex = -1;
+    currentSelectedEl = null;
     selectionLocked = false;
 
     console.log('[蓝湖提取器] 已退出');
