@@ -124,12 +124,17 @@
     <div style="display:flex;gap:4px;">
       <button id="__lh_f_ap" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;transition:all 0.15s;">📎 追加</button>
       <button id="__lh_f_pv" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;transition:all 0.15s;">👁</button>
+      <button id="__lh_f_sc" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;transition:all 0.15s;">📷</button>
       <button id="__lh_f_cp" style="background:#2b8a3e;color:#fff;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;">📋</button>
       <button id="__lh_f_dl" style="background:#f08c00;color:#fff;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;">💾</button>
       <button id="__lh_f_x" style="background:transparent;color:#909296;border:1px solid #373a40;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;">✕</button>
     </div>
   </div>
   <div id="__lh_f_b" style="padding:12px;overflow-y:auto;max-height:380px;white-space:pre-wrap;font-size:12px;line-height:1.6;color:#909296;"></div>
+  <div id="__lh_f_img" style="display:none;padding:0 12px 12px;text-align:center;">
+    <img id="__lh_f_img_src" style="max-width:100%;border-radius:4px;border:1px solid #373a40;cursor:pointer;">
+    <div style="font-size:10px;color:#5c5f66;margin-top:4px;">点击图片查看原图</div>
+  </div>
   <div style="padding:6px 14px;background:#25262b;border-top:1px solid #373a40;font-size:11px;color:#5c5f66;
     display:flex;justify-content:space-between;">
     <span id="__lh_f_s">点击元素精准拾取，或拖拽框选区域提取</span>
@@ -186,6 +191,15 @@
         const b = document.getElementById('__lh_f_b');
         const s = document.getElementById('__lh_f_s');
         if (b) refreshDisplay(b, s, '');
+      });
+    }
+
+    // 截图
+    const scBtn = document.getElementById('__lh_f_sc');
+    if (scBtn) {
+      scBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        takeScreenshot();
       });
     }
 
@@ -397,6 +411,33 @@
 
   // ---- 追加模式 ----
   let appendMode = false;
+
+  // ---- 截图 ----
+  async function takeScreenshot() {
+    const target = escalation.current;
+    if (!target) { setStatus('⚠️ 请先点击选择要截图的内容'); return; }
+    const r = target.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) { setStatus('⚠️ 选中区域太小'); return; }
+    try {
+      setStatus('📷 正在截图...');
+      const response = await chrome.runtime.sendMessage({
+        action: 'capture-rect',
+        rect: { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) }
+      });
+      if (response.status !== 'ok') throw new Error(response.error);
+      // 显示截图
+      const imgDiv = document.getElementById('__lh_f_img');
+      const imgEl = document.getElementById('__lh_f_img_src');
+      if (imgDiv && imgEl) {
+        imgEl.src = response.dataUrl;
+        imgDiv.style.display = 'block';
+        imgEl.onclick = () => window.open(response.dataUrl, '_blank');
+      }
+      setStatus('📷 截图已就位（点击图片查看原图）');
+    } catch (e) {
+      setStatus(`⚠️ 截图失败: ${e.message}`);
+    }
+  }
 
   // ---- 事件 ----
   function onMouseDown(e) {

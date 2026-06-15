@@ -52,6 +52,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendResponse({ status: 'ok' });
     return;
   }
+
+  // 截图：捕获可视区域并裁剪
+  if (request.action === 'capture-rect') {
+    const tabId = request.tabId || sender.tab?.id;
+    if (!tabId) { sendResponse({ error: 'no tab' }); return; }
+    captureRect(tabId, request.rect).then(sendResponse);
+    return true;
+  }
 });
 
 async function broadcastToFrames(tabId, msg) {
@@ -126,4 +134,19 @@ async function diagnoseAllFrames(tabId) {
     frameInfo.push(info);
   }
   return { success: true, frames: frameInfo };
+}
+
+async function captureRect(tabId, rect) {
+  try {
+    const dataUrl = await chrome.tabs.captureVisibleTab(tabId, { format: 'png' });
+    // 裁剪：用 canvas
+    const img = await createImageBitmap(await (await fetch(dataUrl)).blob());
+    const canvas = new OffscreenCanvas(rect.w, rect.h);
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, rect.x, rect.y, rect.w, rect.h, 0, 0, rect.w, rect.h);
+    const blob = await canvas.convertToBlob({ type: 'image/png' });
+    return { status: 'ok', dataUrl: URL.createObjectURL(blob) };
+  } catch (e) {
+    return { status: 'error', error: e.message };
+  }
 }
