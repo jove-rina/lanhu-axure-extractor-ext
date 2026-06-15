@@ -268,6 +268,11 @@
           setStatus('⚠️ 请先点击页面选择元素');
           return;
         }
+        // 来自 iframe 的选择 → 坐标无法映射到顶层，不支持导航
+        if (floater?.dataset?.fromIframe === '1') {
+          setStatus('⚠️ iframe 内不支持容器导航');
+          return;
+        }
         const current = document.elementFromPoint(l + w / 2, t + h / 2);
         if (!current) { setStatus('⚠️ 无法定位选中元素'); return; }
 
@@ -649,6 +654,7 @@
       floater.dataset.selTop = fr.top;
       floater.dataset.selW = fr.width;
       floater.dataset.selH = fr.height;
+      delete floater.dataset.fromIframe; // top frame 自身选择，清除 iframe 标记
       console.log('[蓝湖]', frameTag, 'floater.dataset 已写入:', fr.left, fr.top, fr.width, fr.height);
     } else {
       console.log('[蓝湖]', frameTag, 'floater 为空，无法写入 dataset');
@@ -705,6 +711,7 @@
         floater.dataset.selTop = data.selTop;
         floater.dataset.selW = data.selW;
         floater.dataset.selH = data.selH;
+        floater.dataset.fromIframe = '1';
       }
     } else {
       if (upBtn) { upBtn.setAttribute('aria-disabled', 'false'); upBtn.style.opacity = '1'; upBtn.style.color = '#c1c2c5'; upBtn.style.cursor = 'pointer'; }
@@ -843,7 +850,6 @@
 
     if (FRAME_CTX === 'top') {
       createFloater();
-      // 非创建实例（是 Chrome 注入的第二遍）→ 跳过事件绑定和 DOM 操作
       if (!createdByMe) {
         console.log('[蓝湖] 非创建实例，跳过');
         return;
