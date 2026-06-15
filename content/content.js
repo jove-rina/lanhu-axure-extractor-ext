@@ -124,7 +124,6 @@
     <div style="display:flex;gap:4px;">
       <button id="__lh_f_ap" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;transition:all 0.15s;">📎 追加</button>
       <button id="__lh_f_pv" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;transition:all 0.15s;">👁</button>
-      <button id="__lh_f_sc" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;transition:all 0.15s;">📷</button>
       <button id="__lh_f_cp" style="background:#2b8a3e;color:#fff;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;">📋</button>
       <button id="__lh_f_dl" style="background:#f08c00;color:#fff;border:none;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;">💾</button>
       <button id="__lh_f_x" style="background:transparent;color:#909296;border:1px solid #373a40;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer;">✕</button>
@@ -134,6 +133,12 @@
   <div id="__lh_f_img" style="display:none;padding:0 12px 12px;text-align:center;">
     <img id="__lh_f_img_src" style="max-width:100%;border-radius:4px;border:1px solid #373a40;cursor:pointer;">
     <div style="font-size:10px;color:#5c5f66;margin-top:4px;">点击图片查看原图</div>
+  </div>
+  <div id="__lh_f_sc_btns" style="display:flex;gap:4px;padding:4px 12px 8px;border-top:1px solid #25262b;flex-wrap:wrap;">
+    <button data-sc="fullscreen" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">🖥 全屏</button>
+    <button data-sc="fullpage" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">📄 整页</button>
+    <button data-sc="container" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">🎯 容器</button>
+    <button data-sc="multi" style="background:#373a40;color:#909296;border:none;border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer;">➕ 多选</button>
   </div>
   <div style="padding:6px 14px;background:#25262b;border-top:1px solid #373a40;font-size:11px;color:#5c5f66;
     display:flex;justify-content:space-between;">
@@ -194,14 +199,19 @@
       });
     }
 
-    // 截图
-    const scBtn = document.getElementById('__lh_f_sc');
-    if (scBtn) {
-      scBtn.addEventListener('click', (e) => {
+    // 截图模式按钮
+    document.querySelectorAll('#__lh_f_sc_btns button').forEach(btn => {
+      btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        takeScreenshot();
+        const mode = btn.getAttribute('data-sc');
+        // 点过的按钮高亮
+        document.querySelectorAll('#__lh_f_sc_btns button').forEach(b => {
+          b.style.background = b === btn ? '#f08c00' : '#373a40';
+          b.style.color = b === btn ? '#fff' : '#909296';
+        });
+        takeScreenshot(mode);
       });
-    }
+    });
 
     // 拖拽
     const h = document.getElementById('__lh_f_h');
@@ -412,31 +422,109 @@
   // ---- 追加模式 ----
   let appendMode = false;
 
-  // ---- 截图 ----
-  async function takeScreenshot() {
-    const target = escalation.current;
-    if (!target) { setStatus('⚠️ 请先点击选择要截图的内容'); return; }
-    const r = target.getBoundingClientRect();
-    if (r.width < 2 || r.height < 2) { setStatus('⚠️ 选中区域太小'); return; }
-    try {
-      setStatus('📷 正在截图...');
-      const response = await chrome.runtime.sendMessage({
+  // ---- 截图模式 ----
+  let containerRects = []; // 多选容器截图用
+  let currentScreenshotMode = null;
+
+  async function captureFullscreen() {
+    const vpW = window.innerWidth, vpH = window.innerHeight;
+    const response = await chrome.runtime.sendMessage({
+      action: 'capture-rect',
+      rect: { x: 0, y: 0, w: Math.round(vpW), h: Math.round(vpH) }
+    });
+    if (response.status !== 'ok') throw new Error(response.error);
+    return response.dataUrl;
+  }
+
+  async function captureFullpage() {
+    const origY = window.scrollY;
+    const vpW = window.innerWidth, vpH = window.innerHeight;
+    const fullH = Math.max(document.documentElement.scrollHeight, vpH);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = vpW;
+    canvas.height = fullH;
+    const ctx = canvas.getContext('2d');
+
+    for (let y = 0; y < fullH; y += vpH) {
+      window.scrollTo(0, y);
+      await new Promise(r => setTimeout(r, 250));
+      const resp = await chrome.runtime.sendMessage({
         action: 'capture-rect',
-        rect: { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) }
+        rect: { x: 0, y: 0, w: Math.round(vpW), h: Math.round(vpH) }
       });
-      if (response.status !== 'ok') throw new Error(response.error);
-      // 显示截图
+      if (resp.status !== 'ok') { window.scrollTo(0, origY); throw new Error(resp.error); }
+      const img = new Image();
+      img.src = resp.dataUrl;
+      await new Promise((ok, bad) => { img.onload = ok; img.onerror = bad; });
+      const dh = Math.min(vpH, fullH - y);
+      ctx.drawImage(img, 0, 0, vpW, dh, 0, y, vpW, dh);
+    }
+    window.scrollTo(0, origY);
+    return canvas.toDataURL('image/png');
+  }
+
+  async function captureContainer() {
+    const target = escalation.current;
+    if (!target) throw new Error('请先点击选择要截图的内容');
+    const r = target.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) throw new Error('选中区域太小');
+    const resp = await chrome.runtime.sendMessage({
+      action: 'capture-rect',
+      rect: { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) }
+    });
+    if (resp.status !== 'ok') throw new Error(resp.error);
+    return resp.dataUrl;
+  }
+
+  async function captureMultiContainer() {
+    if (containerRects.length < 2) throw new Error('请先用追加模式选择至少 2 个容器');
+    const left = Math.min(...containerRects.map(r => r.x));
+    const top = Math.min(...containerRects.map(r => r.y));
+    const right = Math.max(...containerRects.map(r => r.x + r.w));
+    const bottom = Math.max(...containerRects.map(r => r.y + r.h));
+    const w = right - left, h = bottom - top;
+    if (w < 2 || h < 2) throw new Error('合并区域太小');
+    const resp = await chrome.runtime.sendMessage({
+      action: 'capture-rect',
+      rect: { x: Math.round(left), y: Math.round(top), w: Math.round(w), h: Math.round(h) }
+    });
+    if (resp.status !== 'ok') throw new Error(resp.error);
+    return resp.dataUrl;
+  }
+
+  const SC_MODES = {
+    fullscreen: { name: '🖥 全屏', fn: captureFullscreen },
+    fullpage:   { name: '📄 整页', fn: captureFullpage },
+    container:  { name: '🎯 容器', fn: captureContainer },
+    multi:      { name: '➕ 多选', fn: captureMultiContainer },
+  };
+
+  async function takeScreenshot(mode) {
+    const action = SC_MODES[mode];
+    if (!action) { setStatus('⚠️ 未知截图模式'); return; }
+    try {
+      setStatus(`📷 ${action.name}···`);
+      const dataUrl = await action.fn();
       const imgDiv = document.getElementById('__lh_f_img');
       const imgEl = document.getElementById('__lh_f_img_src');
       if (imgDiv && imgEl) {
-        imgEl.src = response.dataUrl;
+        imgEl.src = dataUrl;
         imgDiv.style.display = 'block';
-        imgEl.onclick = () => window.open(response.dataUrl, '_blank');
+        imgEl.onclick = () => window.open(dataUrl, '_blank');
       }
-      setStatus('📷 截图已就位（点击图片查看原图）');
+      setStatus(`✅ ${action.name} 截图已就位`);
     } catch (e) {
-      setStatus(`⚠️ 截图失败: ${e.message}`);
+      setStatus(`⚠️ ${action.name} 失败: ${e.message}`);
     }
+  }
+
+  function trackContainerRect(el) {
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const rect = { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) };
+    if (appendMode) { containerRects.push(rect); }
+    else { containerRects = [rect]; }
   }
 
   // ---- 事件 ----
@@ -505,7 +593,7 @@
           if (result.markdown) {
             if (FRAME_CTX !== 'top') {
               try { window.top.postMessage({ type: '__lh_picker_result', markdown: result.markdown, sourceType: result.type }, '*'); } catch {}
-            } else { setContent(result.markdown, result.type); }
+            } else { setContent(result.markdown, result.type); trackContainerRect(escalation.current); }
           } else { setStatus('⚠️ 容器无内容'); }
           return;
         }
