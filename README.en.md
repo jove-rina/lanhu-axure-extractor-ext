@@ -5,10 +5,10 @@
 
 [中文](README.md) · [Changelog](CHANGELOG.en.md)
 
-[![Chrome](https://img.shields.io/badge/Chrome-Extension-4285F4?logo=google-chrome&logoColor=white)](https://chrome.google.com/webstore)
-[![Edge](https://img.shields.io/badge/Edge-Extension-0078D7?logo=microsoft-edge&logoColor=white)](https://microsoftedge.microsoft.com/addons)
-[![Manifest V3](https://img.shields.io/badge/Manifest-V3-2ea44f)](https://developer.chrome.com/docs/extensions/mv3/)
-![License](https://img.shields.io/badge/License-GPL--3.0-blue)
+[Chrome](https://chrome.google.com/webstore)
+[Edge](https://microsoftedge.microsoft.com/addons)
+[Manifest V3](https://developer.chrome.com/docs/extensions/mv3/)
+License
 
 ---
 
@@ -44,14 +44,16 @@ No more screenshot → paste → retype tables → reformat loops.
 
 ## Features at a Glance
 
-| Category | Capabilities |
-|----------|--------------|
-| **Extraction** | Drag-select; smart Axure table detection; text fallback; cross-iframe picking |
+
+| Category         | Capabilities                                                                      |
+| ---------------- | --------------------------------------------------------------------------------- |
+| **Extraction**   | Drag-select; smart Axure table detection; text fallback; cross-iframe picking     |
 | **Doc building** | Module titles + entries; drag reorder; expand/collapse; select all / batch delete |
-| **Editing** | Dedicated edit dialog; split Markdown editor; undo/redo; pick-to-fill |
-| **Export** | Full doc / single module: preview, copy, download; filenames use real page title |
-| **Persistence** | Auto-save by `versionId + pageId`; page-switch hints and restore |
-| **UX** | Dark UI; draggable panel; fixed tooltips; Chinese / English |
+| **Editing**      | Dedicated edit dialog; split Markdown editor; undo/redo; pick-to-fill             |
+| **Export**       | Full doc / single module: preview, copy, download; filenames use real page title  |
+| **Persistence**  | Auto-save by `versionId + pageId`; page-switch hints and restore                  |
+| **UX**           | Dark UI; draggable panel; fixed tooltips; Chinese / English                       |
+
 
 ---
 
@@ -98,16 +100,18 @@ The floating panel (bottom-right, draggable) is the main editing surface:
 
 Click **Edit** on a module for long-form / Markdown work:
 
-| Capability | Description |
-|------------|-------------|
-| **Layout** | Default 60% width, 80vh height (max 750px); draggable |
-| **Window controls** | Minimize / restore, fullscreen / exit, close |
-| **Title** | Input + pick button; dialog can shrink to bottom-left while picking |
-| **Entries** | Collapsible; default 400px height, vertically resizable |
-| **Markdown editor** | Source / split / preview; bold, italic, link, etc. |
-| **Undo / redo** | Text history in the editor |
-| **Pick fill** | Toast indicates whether title or content was filled |
-| **Save policy** | Changes apply only on Save; dialog closes on page switch |
+
+| Capability          | Description                                                         |
+| ------------------- | ------------------------------------------------------------------- |
+| **Layout**          | Default 60% width, 80vh height (max 750px); draggable               |
+| **Window controls** | Minimize / restore, fullscreen / exit, close                        |
+| **Title**           | Input + pick button; dialog can shrink to bottom-left while picking |
+| **Entries**         | Collapsible; default 400px height, vertically resizable             |
+| **Markdown editor** | Source / split / preview; bold, italic, link, etc.                  |
+| **Undo / redo**     | Text history in the editor                                          |
+| **Pick fill**       | Toast indicates whether title or content was filled                 |
+| **Save policy**     | Changes apply only on Save; dialog closes on page switch            |
+
 
 ### Preview & Export
 
@@ -148,27 +152,49 @@ Click **Edit** on a module for long-form / Markdown work:
 
 ### Prerequisites
 
-| Item | Requirement |
-|------|-------------|
-| Browser | Chrome 88+ or Edge 88+ |
-| Site | Lanhu Axure pages (`lanhuapp.com`) |
-| Permissions | Standard extension install |
+
+| Item        | Requirement                        |
+| ----------- | ---------------------------------- |
+| Browser     | Chrome or Edge                     |
+| Site        | Lanhu Axure pages (`lanhuapp.com`) |
+| Permissions | Standard extension install         |
+
 
 ### Developer mode
 
-1. Clone or download this repo  
-   `git clone https://github.com/jove-rina/lanhu-axure-extractor-ext.git`
-2. Open `chrome://extensions` or `edge://extensions`
-3. Enable Developer mode → Load unpacked
-4. Select the project root → extension icon appears in the toolbar
+1. Clone the repo
+  `git clone https://github.com/jove-rina/lanhu-axure-extractor-ext.git`
+2. Install dependencies and build
+  ```bash
+   pnpm install
+   pnpm run build
+  ```
+3. Open `chrome://extensions` or `edge://extensions`
+4. Enable Developer mode → Load unpacked
+5. Select the `**dist**` folder (not the repo root)
+6. Extension icon appears in the toolbar
+
+For development, run `pnpm run dev`, reload the extension, then refresh the Lanhu page.
 
 ### Package for release (optional)
 
-```powershell
-.\scripts\pack.ps1
+```bash
+pnpm run pack
+# or: pnpm run build && node scripts/pack.mjs
 ```
 
-Output: `dist/lanhu-axure-extractor-ext-v{version}.zip` (excludes `.git`, `demo`, `scripts`, `dist`, etc.).
+Output: `dist/lanhu-axure-extractor-ext-v{version}.zip`.
+
+### Update extension icons
+
+The source file is `public/icons/icon.svg` (orange circle + white **A** + magnifying glass). After editing the SVG, run:
+
+```bash
+pnpm run icons
+# or: node scripts/gen-icons.mjs
+```
+
+This generates `icon16.png`, `icon48.png`, and `icon128.png`. Then run `pnpm run build` and reload the extension on the extensions page.
 
 ### Store install
 
@@ -178,23 +204,42 @@ Chrome Web Store / Edge Add-ons listing in progress.
 
 ## Project Structure
 
+> **Note:** `background`, `content`, `popup`, and `_locales` live under **`src/`** and **`public/`**, **not** at the repo root. Empty folders with those names at the root were v1 leftovers and have been removed.
+
 ```
 lanhu-axure-extractor-ext/
-├── manifest.json           # Manifest V3 config
-├── LICENSE                 # GPL-3.0
-├── CHANGELOG.md            # Chinese changelog
-├── CHANGELOG.en.md         # English changelog
-├── README.md / README.en.md
-│
-├── popup/                  # Extension popup (open builder, language)
-├── content/                # Content scripts (panel, pick, edit, export)
-│   ├── content.js
-│   └── marked.min.js
-├── background/             # Service Worker (frame broadcast, routing)
-├── icons/
-├── _locales/               # chrome.i18n messages
-└── scripts/
-    └── pack.ps1            # Packaging script
+├── src/
+│   ├── manifest.json             # Extension manifest (CRXJS build entry)
+│   ├── background/
+│   │   └── index.ts              # Service Worker: cross-iframe messaging
+│   ├── content/                  # Content scripts (lanhuapp.com, all_frames)
+│   │   ├── index.ts              # Entry onExecute
+│   │   ├── api.ts                # chrome.runtime.onMessage
+│   │   ├── state.ts              # Global mutable state
+│   │   ├── i18n/                 # Runtime i18n (uses public/_locales)
+│   │   ├── markdown/             # Sanitize, tables, preview
+│   │   ├── extract/              # Rect/element/page extraction
+│   │   ├── modules/manager.ts    # Module CRUD & persistence
+│   │   ├── ui/                   # Floater, editor, preview
+│   │   ├── picker/               # Pick flow, screenshot, mouse
+│   │   └── bridge/post-message.ts# iframe messaging
+│   ├── popup/                    # Extension icon popup
+│   │   ├── index.html
+│   │   ├── index.ts
+│   │   └── popup.css
+│   └── shared/                   # Message constants, language helpers
+├── public/
+│   ├── icons/                    # Extension icons: icon.svg source + 16/48/128 PNG (manifest)
+│   └── _locales/                 # Extension name/desc & chrome.i18n strings
+│       ├── zh_CN/messages.json
+│       └── en/messages.json
+├── scripts/
+│   ├── pack.mjs                  # Zip dist/ for distribution
+│   └── gen-icons.mjs             # Generate PNG icons from icon.svg (pnpm run icons)
+├── demo/                         # Local Axure page fixtures (optional, not built)
+├── vite.config.ts
+├── dist/                         # Build output (load this folder in dev mode)
+└── ...
 ```
 
 ---
@@ -203,15 +248,19 @@ lanhu-axure-extractor-ext/
 
 ### Tech stack
 
-| Module | Choice |
-|--------|--------|
-| Extension | Chrome Manifest V3 |
-| UI | Vanilla HTML + CSS, inline SVG, no UI framework |
-| Extraction | DOM traversal + box select + Y/X table algorithm |
-| Markdown | Custom converter + `marked` for preview |
-| Messaging | `chrome.runtime.sendMessage` + `window.postMessage` |
-| Storage | `chrome.storage.local` |
-| i18n | `chrome.i18n` + inline fallback tables |
+
+| Module     | Choice                                              |
+| ---------- | --------------------------------------------------- |
+| Extension  | Chrome Manifest V3                                  |
+| Tooling    | Vite + TypeScript + @crxjs/vite-plugin              |
+| Icon gen   | `public/icons/icon.svg` + `@resvg/resvg-js` (`pnpm run icons`) |
+| UI         | Vanilla HTML + CSS, inline SVG, no UI framework     |
+| Extraction | DOM traversal + box select + Y/X table algorithm    |
+| Markdown   | Custom converter + `marked` for preview             |
+| Messaging  | `chrome.runtime.sendMessage` + `window.postMessage` |
+| Storage    | `chrome.storage.local`                              |
+| i18n       | `chrome.i18n` + inline fallback tables              |
+
 
 ### Flow
 
@@ -229,12 +278,14 @@ Preview/download → assemble Markdown → marked HTML or Blob download
 
 ### Design decisions
 
-| Decision | Rationale |
-|----------|-----------|
-| Panel in top frame only | `window.top === window.self` — no duplicate panels |
-| Cross-iframe pick | Background broadcast + iframe scripts + postMessage |
-| Real page title | iframe postMessage syncs Axure `header.title` |
-| Data isolation | Per-page storage keys |
+
+| Decision                | Rationale                                           |
+| ----------------------- | --------------------------------------------------- |
+| Panel in top frame only | `window.top === window.self` — no duplicate panels  |
+| Cross-iframe pick       | Background broadcast + iframe scripts + postMessage |
+| Real page title         | iframe postMessage syncs Axure `header.title`       |
+| Data isolation          | Per-page storage keys                               |
+
 
 ### Limitations
 

@@ -5,10 +5,10 @@
 
 [English](README.en.md) · [更新日志](CHANGELOG.md)
 
-[![Chrome](https://img.shields.io/badge/Chrome-Extension-4285F4?logo=google-chrome&logoColor=white)](https://chrome.google.com/webstore)
-[![Edge](https://img.shields.io/badge/Edge-Extension-0078D7?logo=microsoft-edge&logoColor=white)](https://microsoftedge.microsoft.com/addons)
-[![Manifest V3](https://img.shields.io/badge/Manifest-V3-2ea44f)](https://developer.chrome.com/docs/extensions/mv3/)
-![License](https://img.shields.io/badge/License-GPL--3.0-blue)
+[Chrome](https://chrome.google.com/webstore)
+[Edge](https://microsoftedge.microsoft.com/addons)
+[Manifest V3](https://developer.chrome.com/docs/extensions/mv3/)
+License
 
 ---
 
@@ -44,14 +44,16 @@
 
 ## 功能一览
 
-| 类别 | 能力 |
-|------|------|
-| **内容提取** | 拖拽框选；Axure 表格智能识别；文本降级提取；跨 iframe 拾取 |
-| **文档构建** | 模块化标题 + 多条目；拖拽排序；展开/收起；全选/批量删除 |
-| **编辑增强** | 独立编辑弹窗；分栏 Markdown 编辑器；撤销/重做；拾取填充 |
-| **导出** | 整文档 / 单模块：预览、复制、下载；文件名含真实页面标题 |
-| **持久化** | 按 `versionId + pageId` 自动保存；切换页面提示与恢复 |
-| **体验** | 深色 UI；可拖拽浮框；固定 Tooltip；中英文切换 |
+
+| 类别       | 能力                                    |
+| -------- | ------------------------------------- |
+| **内容提取** | 拖拽框选；Axure 表格智能识别；文本降级提取；跨 iframe 拾取  |
+| **文档构建** | 模块化标题 + 多条目；拖拽排序；展开/收起；全选/批量删除        |
+| **编辑增强** | 独立编辑弹窗；分栏 Markdown 编辑器；撤销/重做；拾取填充     |
+| **导出**   | 整文档 / 单模块：预览、复制、下载；文件名含真实页面标题         |
+| **持久化**  | 按 `versionId + pageId` 自动保存；切换页面提示与恢复 |
+| **体验**   | 深色 UI；可拖拽浮框；固定 Tooltip；中英文切换          |
+
 
 ---
 
@@ -98,16 +100,18 @@
 
 点击模块「编辑」打开独立弹窗，适合长文与 Markdown 精细编辑：
 
-| 能力 | 说明 |
-|------|------|
-| **布局** | 默认宽度 60%、高度 80vh（最高 750px）；可拖拽移动 |
-| **窗口控制** | 最小化 / 还原、全屏 / 退出全屏、关闭 |
-| **标题编辑** | 输入框 + 拾取按钮；拾取时弹窗可收至左下角 |
-| **条目编辑** | 每条可折叠/展开；内容区默认 400px 高，可拖拽调整 |
-| **Markdown 编辑器** | 源码 / 分栏 / 预览三种视图；加粗、斜体、链接等快捷插入 |
-| **撤销 / 重做** | 编辑器内文本操作可撤销 |
-| **拾取填充** | 拾取完成后 toast 提示填充的是标题还是内容 |
-| **保存策略** | 仅点击「保存」才写入模块数据；切换页面时自动关闭弹窗 |
+
+| 能力               | 说明                               |
+| ---------------- | -------------------------------- |
+| **布局**           | 默认宽度 60%、高度 80vh（最高 750px）；可拖拽移动 |
+| **窗口控制**         | 最小化 / 还原、全屏 / 退出全屏、关闭            |
+| **标题编辑**         | 输入框 + 拾取按钮；拾取时弹窗可收至左下角           |
+| **条目编辑**         | 每条可折叠/展开；内容区默认 400px 高，可拖拽调整     |
+| **Markdown 编辑器** | 源码 / 分栏 / 预览三种视图；加粗、斜体、链接等快捷插入   |
+| **撤销 / 重做**      | 编辑器内文本操作可撤销                      |
+| **拾取填充**         | 拾取完成后 toast 提示填充的是标题还是内容         |
+| **保存策略**         | 仅点击「保存」才写入模块数据；切换页面时自动关闭弹窗       |
+
 
 ### 预览与导出
 
@@ -148,27 +152,49 @@
 
 ### 前置条件
 
-| 项目 | 要求 |
-|------|------|
-| 浏览器 | Chrome 88+ 或 Edge 88+ |
-| 站点 | 蓝湖 Axure 页面（`lanhuapp.com`） |
-| 权限 | 标准扩展安装即可 |
+
+| 项目  | 要求                          |
+| --- | --------------------------- |
+| 浏览器 | Chrome 或 Edge               |
+| 站点  | 蓝湖 Axure 页面（`lanhuapp.com`） |
+| 权限  | 标准扩展安装即可                    |
+
 
 ### 开发者模式安装
 
-1. 克隆或下载本仓库  
-   `git clone https://github.com/jove-rina/lanhu-axure-extractor-ext.git`
-2. 打开 `chrome://extensions` 或 `edge://extensions`
-3. 开启「开发者模式」→「加载已解压的扩展」
-4. 选择项目根目录 → 工具栏出现扩展图标即成功
+1. 克隆仓库
+  `git clone https://github.com/jove-rina/lanhu-axure-extractor-ext.git`
+2. 安装依赖并构建
+  ```bash
+   pnpm install
+   pnpm run build
+  ```
+3. 打开 `chrome://extensions` 或 `edge://extensions`
+4. 开启「开发者模式」→「加载已解压的扩展」
+5. 选择项目下的 `**dist**` 目录（不是仓库根目录）
+6. 工具栏出现扩展图标即成功
+
+开发时运行 `pnpm run dev`，在扩展管理页点击「重新加载」后刷新蓝湖页面即可调试。
 
 ### 打包发布（可选）
 
-```powershell
-.\scripts\pack.ps1
+```bash
+pnpm run pack
+# 或分步：pnpm run build && node scripts/pack.mjs
 ```
 
-输出至 `dist/lanhu-axure-extractor-ext-v{version}.zip`（已排除 `.git`、`demo`、`scripts`、`dist` 等）。
+输出至 `dist/lanhu-axure-extractor-ext-v{version}.zip`。
+
+### 更新扩展图标
+
+扩展图标源文件为 `public/icons/icon.svg`（橙色圆形底 + 白色 **A** + 放大镜）。修改 SVG 后运行：
+
+```bash
+pnpm run icons
+# 或：node scripts/gen-icons.mjs
+```
+
+会生成 `icon16.png`、`icon48.png`、`icon128.png`。生成后执行 `pnpm run build`，并在扩展管理页重新加载扩展。
 
 ### 商店安装
 
@@ -178,23 +204,42 @@ Chrome Web Store / Edge Add-ons 上架筹备中。
 
 ## 项目结构
 
+> **注意**：`background`、`content`、`popup`、`_locales` 均在 **`src/`** 与 **`public/`** 下，**不在仓库根目录**。根目录若曾存在同名空文件夹，为 v1 遗留，已清理。
+
 ```
 lanhu-axure-extractor-ext/
-├── manifest.json           # Manifest V3 配置
-├── LICENSE                 # GPL-3.0
-├── CHANGELOG.md            # 中文更新日志
-├── CHANGELOG.en.md         # English changelog
-├── README.md / README.en.md
-│
-├── popup/                  # 扩展弹窗（打开构建器、语言选择）
-├── content/                # 内容脚本（浮框、拾取、编辑、导出）
-│   ├── content.js
-│   └── marked.min.js
-├── background/             # Service Worker（帧广播、消息路由）
-├── icons/
-├── _locales/               # chrome.i18n 文案
-└── scripts/
-    └── pack.ps1            # 打包脚本
+├── src/
+│   ├── manifest.json             # 扩展清单（CRXJS 构建入口）
+│   ├── background/
+│   │   └── index.ts              # Service Worker：跨 iframe 消息广播
+│   ├── content/                  # 内容脚本（注入蓝湖页面，all_frames）
+│   │   ├── index.ts              # 入口 onExecute
+│   │   ├── api.ts                # chrome.runtime.onMessage
+│   │   ├── state.ts              # 全局可变状态
+│   │   ├── i18n/                 # 运行时国际化（配合 public/_locales）
+│   │   ├── markdown/             # 清洗、表格、预览
+│   │   ├── extract/              # 框选/元素/全页提取
+│   │   ├── modules/manager.ts    # 模块 CRUD 与持久化
+│   │   ├── ui/                   # 浮窗、编辑弹窗、预览
+│   │   ├── picker/               # 框选拾取、截图、鼠标事件
+│   │   └── bridge/post-message.ts# iframe 通信
+│   ├── popup/                    # 扩展图标弹窗
+│   │   ├── index.html
+│   │   ├── index.ts
+│   │   └── popup.css
+│   └── shared/                   # 消息常量、语言工具
+├── public/
+│   ├── icons/                    # 扩展图标：icon.svg 源文件 + 16/48/128 PNG（manifest 引用）
+│   └── _locales/                 # 扩展名称/描述及 chrome.i18n 文案
+│       ├── zh_CN/messages.json
+│       └── en/messages.json
+├── scripts/
+│   ├── pack.mjs                  # 将 dist/ 打包为 zip
+│   └── gen-icons.mjs             # 从 icon.svg 生成 PNG 图标（pnpm run icons）
+├── demo/                         # 本地 Axure 页面夹具（可选，不参与构建）
+├── vite.config.ts
+├── dist/                         # 构建产物（开发者模式加载此目录）
+└── ...
 ```
 
 ---
@@ -203,15 +248,19 @@ lanhu-axure-extractor-ext/
 
 ### 技术栈
 
-| 模块 | 选型 |
-|------|------|
-| 扩展框架 | Chrome Manifest V3 |
-| UI | 原生 HTML + CSS，内联 SVG，零 UI 框架依赖 |
-| 内容提取 | DOM 遍历 + 框选 + Y/X 坐标表格算法 |
-| Markdown | 自建转换 + `marked` 预览渲染 |
-| 通信 | `chrome.runtime.sendMessage` + `window.postMessage` |
-| 存储 | `chrome.storage.local` |
-| 国际化 | `chrome.i18n` + 内联 fallback 表 |
+
+| 模块       | 选型                                                  |
+| -------- | --------------------------------------------------- |
+| 扩展框架     | Chrome Manifest V3                                  |
+| 工程化      | Vite + TypeScript + @crxjs/vite-plugin              |
+| 图标生成     | `public/icons/icon.svg` + `@resvg/resvg-js`（`pnpm run icons`） |
+| UI       | 原生 HTML + CSS，内联 SVG，零 UI 框架依赖                      |
+| 内容提取     | DOM 遍历 + 框选 + Y/X 坐标表格算法                            |
+| Markdown | 自建转换 + `marked` 预览渲染                                |
+| 通信       | `chrome.runtime.sendMessage` + `window.postMessage` |
+| 存储       | `chrome.storage.local`                              |
+| 国际化      | `chrome.i18n` + 内联 fallback 表                       |
+
 
 ### 工作流程
 
@@ -229,12 +278,14 @@ Popup「打开文档构建器」
 
 ### 设计要点
 
-| 决策 | 说明 |
-|------|------|
-| 浮框仅在顶层 | `window.top === window.self`，避免多 iframe 重复面板 |
-| 跨 iframe 拾取 | Background 广播 + iframe 内脚本 + postMessage 回传 |
-| 真实页面标题 | iframe postMessage 同步 Axure `header.title` |
-| 数据隔离 | 每页独立 storage key，互不影响 |
+
+| 决策          | 说明                                           |
+| ----------- | -------------------------------------------- |
+| 浮框仅在顶层      | `window.top === window.self`，避免多 iframe 重复面板 |
+| 跨 iframe 拾取 | Background 广播 + iframe 内脚本 + postMessage 回传  |
+| 真实页面标题      | iframe postMessage 同步 Axure `header.title`   |
+| 数据隔离        | 每页独立 storage key，互不影响                        |
+
 
 ### 使用限制
 

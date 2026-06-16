@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f08c00"/>
+      <stop offset="100%" stop-color="#e67700"/>
+    </linearGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="64" cy="64" r="58" fill="url(#g)" opacity="0.95"/>
+  <!-- Letter A shape -->
+  <path d="M26 106 L46 18 L64 18 L82 18 L102 106 L86 106 L81 88 L47 88 L42 106 Z" fill="#fff"/>
+  <!-- A crossbar -->
+  <rect x="33" y="75" width="62" height="6" rx="2" fill="#fff"/>
+  <!-- Magnifying glass on the A -->
+  <g transform="translate(64,58) scale(0.82)" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="0" cy="0" r="16" fill="#fff" stroke="#f08c00" stroke-width="4.5"/>
+    <path d="M-7-7 L7 7" fill="none" stroke="#f08c00" stroke-width="4.5"/>
+    <path d="M11-11 L24-24" fill="none" stroke="#f08c00" stroke-width="7"/>
+    <circle cx="24" cy="-24" r="5.5" fill="#fff" stroke="#f08c00" stroke-width="4"/>
+  </g>
+</svg>

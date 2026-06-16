@@ -2,12 +2,32 @@
 
 All notable changes to this project are documented in this file. Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [2.0.0] - 2026-06-15
+## [2.0.0] - 2026-06-16
+
+### Added
+
+- Icon generation script `pnpm run icons` (`scripts/gen-icons.mjs`, exports PNG from SVG via `@resvg/resvg-js`)
+- Extension icon source `public/icons/icon.svg`: orange circle, enlarged **A**, magnifying glass with orange strokes
+
+### Removed
+
+- Legacy empty root folders `background/`, `content/`, `popup/`, `_locales/` (leftover from v1 layout; since v2.0.0, source lives under `src/` and locale files under `public/_locales/`)
 
 ### Changed
 
 - Version bumped to 2.0.0
 - Popup version label now reads from manifest automatically
+- **Engineering overhaul**: migrated from monolithic `content.js` / `background.js` to a **Vite + TypeScript + @crxjs/vite-plugin** modular project
+- **Source layout**: `src/content/` split into `state`, `ui`, `picker`, `extract`, `modules`, `markdown`, `i18n`, `bridge`, etc.; entry point is `onExecute()`
+- **Build & install**: `pnpm install` / `pnpm run build`; load the **`dist/`** folder in developer mode (not the repo root)
+- **Package manager**: switched from npm to **pnpm** (`pnpm-lock.yaml`, `packageManager` field)
+- Static assets and `_locales` moved under `public/`; `marked` bundled as an npm dependency
+- Extension icon refresh: larger **A** closer to circle edges; bolder orange magnifying glass for clarity
+
+### Fixed
+
+- Missing imports/exports after the modular split caused runtime `ReferenceError`s (e.g. `BTN_DISABLED`, `BTN_ACCENT_XS`, `saveModules`, `refreshPageTitleFromIframes`, `getStorageKey`)
+- Stale content scripts after extension reload still called `chrome.*` and threw `Extension context invalidated`; added context validation, timer teardown, and UI cleanup
 
 ## [1.0.0] - 2026-06-15
 

@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "__MSG_appName__",
+  "author": {
+    "name": "Jove Rina",
+    "email": "jove.rina@outlook.com",
+    "url": "https://github.com/jove-rina"
+  },
+  "version": "2.0.0",
+  "description": "__MSG_appDesc__",
+  "default_locale": "zh_CN",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting",
+    "webNavigation"
+  ],
+  "host_permissions": [
+    "*://lanhuapp.com/*",
+    "*://*.lanhuapp.com/*"
+  ],
+  "action": {
+    "default_popup": "src/popup/index.html",
+    "default_title": "Axure Utilities",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "src/background/index.ts",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://lanhuapp.com/*",
+        "*://*.lanhuapp.com/*"
+      ],
+      "js": ["src/content/index.ts"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

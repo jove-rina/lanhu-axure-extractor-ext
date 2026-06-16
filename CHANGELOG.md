@@ -2,12 +2,32 @@
 
 本项目的所有重要变更均记录在此文件中。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。
 
-## [2.0.0] - 2026-06-15
+## [2.0.0] - 2026-06-16
+
+### 新增
+
+- 扩展图标生成脚本 `pnpm run icons`（`scripts/gen-icons.mjs`，基于 `@resvg/resvg-js` 从 SVG 导出 PNG）
+- 扩展图标源文件 `public/icons/icon.svg`：橙色圆形底、放大版 **A** 字母与橙色描边放大镜
+
+### 移除
+
+- 根目录遗留空目录 `background/`、`content/`、`popup/`、`_locales/`（v1 布局残留；v2.0.0 重构后源码已迁至 `src/`，扩展文案迁至 `public/_locales/`）
 
 ### 变更
 
 - 版本号升级至 2.0.0
 - Popup 版本号从 manifest 自动读取，与扩展版本保持一致
+- **工程化重构**：由单文件 `content.js` / `background.js` 迁移为 **Vite + TypeScript + @crxjs/vite-plugin** 模块化工程
+- **源码布局**：`src/content/` 拆分为 `state`、`ui`、`picker`、`extract`、`modules`、`markdown`、`i18n`、`bridge` 等子模块；入口为 `onExecute()`
+- **构建与安装**：`pnpm install` / `pnpm run build`，开发者模式加载 **`dist/`** 目录（非仓库根目录）
+- **包管理**：由 npm 切换为 **pnpm**（`pnpm-lock.yaml`、`packageManager` 字段）
+- 静态资源与 `_locales` 迁至 `public/`；`marked` 改为 npm 依赖按需打包
+- 扩展图标视觉优化：A 字母更大、更贴近圆形边距；放大镜加粗橙色描边以提升辨识度
+
+### 修复
+
+- 模块化拆分后若干样式常量与函数未正确 import/export，导致运行时 `ReferenceError`（如 `BTN_DISABLED`、`BTN_ACCENT_XS`、`saveModules`、`refreshPageTitleFromIframes`、`getStorageKey` 等）
+- 扩展重载后旧 content script 仍调用 `chrome.*`，抛出 `Extension context invalidated`；新增扩展上下文失效检测、定时器停止与 UI 清理
 
 ## [1.0.0] - 2026-06-15
 
