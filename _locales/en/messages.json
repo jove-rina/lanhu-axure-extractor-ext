@@ -42,7 +42,7 @@
     "message": "Pick"
   },
   "addEntry": {
-    "message": "Add"
+    "message": "Add Entry"
   },
   "moveUp": {
     "message": "Move Up"
@@ -68,6 +68,60 @@
   "previewModule": {
     "message": "Preview this module"
   },
+  "editModule": {
+    "message": "Edit this module"
+  },
+  "edit": {
+    "message": "Edit"
+  },
+  "save": {
+    "message": "Save"
+  },
+  "cancel": {
+    "message": "Cancel"
+  },
+  "entryLabel": {
+    "message": "Entry $1"
+  },
+  "writeMode": {
+    "message": "Source"
+  },
+  "previewMode": {
+    "message": "Preview"
+  },
+  "splitMode": {
+    "message": "Split"
+  },
+  "editMinimized": {
+    "message": "Picking…"
+  },
+  "restoreEdit": {
+    "message": "Restore"
+  },
+  "minimizeEdit": {
+    "message": "Minimize"
+  },
+  "fullscreenEdit": {
+    "message": "Fullscreen"
+  },
+  "exitFullscreen": {
+    "message": "Exit fullscreen"
+  },
+  "pickFilledTitle": {
+    "message": "✅ Title filled"
+  },
+  "pickFilledContent": {
+    "message": "✅ Content filled"
+  },
+  "undo": {
+    "message": "Undo"
+  },
+  "redo": {
+    "message": "Redo"
+  },
+  "statusSaved": {
+    "message": "✅ Saved"
+  },
   "deleteModule": {
     "message": "Delete this module"
   },
@@ -81,7 +135,22 @@
     "message": "Data saved"
   },
   "pageSavedDesc": {
-    "message": "Your module data has been auto-saved. Reopen from the extension icon to continue editing."
+    "message": "Module data auto-saved. Reopen from the extension icon and select \"$1\"."
+  },
+  "pageSwitchDesc": {
+    "message": "Module data auto-saved. Reopen from the extension icon and select \"$1\"."
+  },
+  "openBuilderLabel": {
+    "message": "Open Doc Builder"
+  },
+  "dataSavedToast": {
+    "message": "📄 Data saved"
+  },
+  "gotItBtn": {
+    "message": "Got it"
+  },
+  "unknownPage": {
+    "message": "Unknown page"
   },
   "pageSwitchToast": {
     "message": "📄 Data saved"

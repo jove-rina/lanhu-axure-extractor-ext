@@ -17,6 +17,8 @@
       notLanhu: '⚠️ 不在蓝湖页面',
       refreshPage: '⚠️ 请刷新页面后重试',
       openBuilder: '📄 打开文档构建器',
+      footerAuthor: 'Author: Jove Rina',
+      footerLicense: 'License: GPL-3.0',
     },
     en: {
       title: 'Axure Utilities',
@@ -27,6 +29,8 @@
       notLanhu: '⚠️ Not on lanhuapp.com',
       refreshPage: '⚠️ Refresh page and retry',
       openBuilder: '📄 Open Doc Builder',
+      footerAuthor: 'Author: Jove Rina',
+      footerLicense: 'License: GPL-3.0',
     },
   };
 
@@ -42,6 +46,11 @@
   let currentLang = getLang();
   const t = (key) => LANG[currentLang][key] || LANG.zh_CN[key] || key;
 
+  function persistLang(lang) {
+    localStorage.setItem('axure_utils_lang', lang);
+    chrome.storage.local.set({ axure_utils_lang: lang }).catch(() => {});
+  }
+
   function applyLanguage() {
     document.title = t('title');
     document.getElementById('popupTitle').textContent = t('title');
@@ -49,6 +58,12 @@
     document.getElementById('statusText').textContent = t('ready');
     const btn = document.getElementById('btnBuilder');
     if (btn) btn.innerHTML = t('openBuilder');
+    const authorEl = document.getElementById('footerAuthor');
+    if (authorEl) authorEl.textContent = t('footerAuthor');
+    const licenseEl = document.getElementById('footerLicense');
+    if (licenseEl) {
+      licenseEl.innerHTML = `${t('footerLicense').replace('GPL-3.0', '<a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank" rel="noopener">GPL-3.0</a>')}`;
+    }
     // Update select to match
     const sel = document.getElementById('langSelect');
     if (sel) sel.value = currentLang;
@@ -67,7 +82,8 @@
         setStatus(t('notLanhu'), 'error');
         return;
       }
-      await chrome.runtime.sendMessage({ action: 'open-builder', tabId: tab.id });
+      persistLang(currentLang);
+      await chrome.runtime.sendMessage({ action: 'open-builder', tabId: tab.id, lang: currentLang });
       setStatus(t('builderReady'), 'ready');
       window.close();
     } catch (err) {
@@ -84,7 +100,7 @@
     if (sel) {
       sel.addEventListener('change', () => {
         currentLang = sel.value === 'auto' ? getLang() : sel.value;
-        localStorage.setItem('axure_utils_lang', currentLang);
+        persistLang(currentLang);
         applyLanguage();
         // Notify content script about language change
         chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {

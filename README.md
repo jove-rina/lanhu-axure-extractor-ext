@@ -6,7 +6,7 @@
 [![Chrome](https://img.shields.io/badge/Chrome-Extension-4285F4?logo=google-chrome&logoColor=white)](https://chrome.google.com/webstore)
 [![Edge](https://img.shields.io/badge/Edge-Extension-0078D7?logo=microsoft-edge&logoColor=white)](https://microsoftedge.microsoft.com/addons)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-2ea44f)](https://developer.chrome.com/docs/extensions/mv3/)
-![License](https://img.shields.io/badge/License-MIT-yellow)
+![License](https://img.shields.io/badge/License-GPL--3.0-blue)
 
 ---
 
@@ -47,10 +47,11 @@ Axure 的表格渲染方式多样 —— 有原生 `<table>`，也有 div + CSS 
 - **多条内容条目**：每条独立拾取（表格或文本），支持拖拽排序
 
 模块支持：
-- **拖拽排序** — 左上角手柄 `☰` 拖拽调整模块顺序
+- **拖拽排序** — 拖拽模块卡片调整顺序
 - **独立展开/收起** — 逐个模块折叠，长文档时聚焦核心
 - **全选/批量删除** — 勾选模块快速清理
-- **新增模块**时不自动展开 — 不打断当前编辑流
+- **编辑弹窗** — 分栏 Markdown 编辑器，支持撤销/重做、拾取填充、全屏编辑
+- **模块预览/复制/下载** — 单模块独立导出，标题统一为二级标题 `##`
 
 ### 🔄 跨 iframe 拾取
 
@@ -77,8 +78,8 @@ Axure 的表格渲染方式多样 —— 有原生 `<table>`，也有 div + CSS 
 - 暖金色（`#f08c00`）强调色
 - 可拖拽浮动面板，不遮挡页面内容
 - 内联 SVG 图标（无外部资源依赖）
-- 细滚动条（4px 暗色圆角）
-- CSS tooltip 在按钮上方显示
+- 统一细滚动条（6px 暗色圆角）
+- 固定定位 Tooltip，按钮悬停提示不被裁剪
 
 ### 🌐 中英文双语
 
@@ -324,4 +325,8 @@ git push origin feature/your-feature
 
 ## 📄 License
 
-[MIT](LICENSE) © 2026 jove-rina
+本项目采用 [GNU General Public License v3.0](LICENSE)（GPL-3.0）授权 © 2026 Jove Rina
+
+## 📋 更新日志
+
+详见 [CHANGELOG.md](CHANGELOG.md)（[English](CHANGELOG.en.md)）

@@ -32,7 +32,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'open-builder') {
     const tabId = request.tabId || sender.tab?.id;
     if (!tabId) { sendResponse({ error: 'no tab' }); return; }
-    broadcastToFrames(tabId, { action: 'open-builder' }).then((r) => {
+    broadcastToFrames(tabId, { action: 'open-builder', lang: request.lang }).then((r) => {
       sendResponse({ status: 'ok', success: r.success, total: r.total });
     });
     return true;

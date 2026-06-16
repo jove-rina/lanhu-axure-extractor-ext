@@ -6,7 +6,7 @@
 [![Chrome](https://img.shields.io/badge/Chrome-Extension-4285F4?logo=google-chrome&logoColor=white)](https://chrome.google.com/webstore)
 [![Edge](https://img.shields.io/badge/Edge-Extension-0078D7?logo=microsoft-edge&logoColor=white)](https://microsoftedge.microsoft.com/addons)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-2ea44f)](https://developer.chrome.com/docs/extensions/mv3/)
-![License](https://img.shields.io/badge/License-MIT-yellow)
+![License](https://img.shields.io/badge/License-GPL--3.0-blue)
 
 ---
 
@@ -47,10 +47,11 @@ Organize documents as **modules**, each containing:
 - **Multiple content entries**: each independently pickable (table or text), reorderable by dragging
 
 Module features:
-- **Drag to reorder** — use the `☰` handle on each module's top-left
+- **Drag to reorder** — drag module cards to change order
 - **Independent expand/collapse** — fold modules individually for focus
 - **Select all / batch delete** — check modules and remove in bulk
-- **New modules don't auto-expand** — won't disrupt your current editing flow
+- **Edit dialog** — split Markdown editor with undo/redo, pick-to-fill, fullscreen mode
+- **Per-module preview/copy/download** — export a single module; titles use `##` (h2)
 
 ### 🔄 Cross-iframe Picking
 
@@ -77,8 +78,8 @@ Built for extended prototype review sessions:
 - Warm gold (`#f08c00`) accent color
 - Draggable floating panel that won't block page content
 - Inline SVG icons (zero external dependencies)
-- Thin scrollbar (4px dark rounded)
-- CSS tooltips displayed above buttons
+- Unified thin scrollbars (6px dark rounded)
+- Fixed-position tooltips that are never clipped by overflow
 
 ### 🌐 Bilingual i18n
 
@@ -324,4 +325,8 @@ git push origin feature/your-feature
 
 ## 📄 License
 
-[MIT](LICENSE) © 2026 jove-rina
+This project is licensed under the [GNU General Public License v3.0](LICENSE) (GPL-3.0) © 2026 Jove Rina
+
+## 📋 Changelog
+
+See [CHANGELOG.en.md](CHANGELOG.en.md) ([中文](CHANGELOG.md))

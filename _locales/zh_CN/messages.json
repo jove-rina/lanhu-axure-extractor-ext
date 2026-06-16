@@ -42,7 +42,7 @@
     "message": "拾取"
   },
   "addEntry": {
-    "message": "新增"
+    "message": "新增条目"
   },
   "moveUp": {
     "message": "上移"
@@ -68,6 +68,60 @@
   "previewModule": {
     "message": "预览此模块"
   },
+  "editModule": {
+    "message": "编辑此模块"
+  },
+  "edit": {
+    "message": "编辑"
+  },
+  "save": {
+    "message": "保存"
+  },
+  "cancel": {
+    "message": "取消"
+  },
+  "entryLabel": {
+    "message": "条目 $1"
+  },
+  "writeMode": {
+    "message": "源码"
+  },
+  "previewMode": {
+    "message": "预览"
+  },
+  "splitMode": {
+    "message": "分栏"
+  },
+  "editMinimized": {
+    "message": "拾取中…"
+  },
+  "restoreEdit": {
+    "message": "恢复编辑"
+  },
+  "minimizeEdit": {
+    "message": "缩小"
+  },
+  "fullscreenEdit": {
+    "message": "全屏"
+  },
+  "exitFullscreen": {
+    "message": "退出全屏"
+  },
+  "pickFilledTitle": {
+    "message": "✅ 已填充标题"
+  },
+  "pickFilledContent": {
+    "message": "✅ 已填充内容"
+  },
+  "undo": {
+    "message": "撤销"
+  },
+  "redo": {
+    "message": "重做"
+  },
+  "statusSaved": {
+    "message": "✅ 已保存"
+  },
   "deleteModule": {
     "message": "删除此模块"
   },
@@ -81,7 +135,22 @@
     "message": "数据已保存"
   },
   "pageSavedDesc": {
-    "message": "当前页面的模块数据已自动保存。如需继续编辑，请点击浏览器右上角扩展图标选择「打开文档构建器」"
+    "message": "当前页面的模块数据已自动保存。如需继续编辑，请点击浏览器右上角扩展图标选择「$1」"
+  },
+  "pageSwitchDesc": {
+    "message": "当前页面的模块数据已自动保存。如需继续编辑，请点击浏览器右上角扩展图标选择「$1」"
+  },
+  "openBuilderLabel": {
+    "message": "打开文档构建器"
+  },
+  "dataSavedToast": {
+    "message": "📄 数据已保存"
+  },
+  "gotItBtn": {
+    "message": "知道了"
+  },
+  "unknownPage": {
+    "message": "未知页面"
   },
   "pageSwitchToast": {
     "message": "📄 数据已保存"

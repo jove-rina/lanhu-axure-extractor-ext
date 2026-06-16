@@ -113,9 +113,20 @@ footer {
   gap: 2px;
 }
 
-.footer-author {
+.footer-author,
+.footer-license {
   font-size: 11px;
   color: var(--text-dim);
+}
+
+.footer-license a {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.footer-license a:hover {
+  color: var(--primary);
+  text-decoration: underline;
 }
 
 .footer-version {
