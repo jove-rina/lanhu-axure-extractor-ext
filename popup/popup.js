@@ -45,6 +45,12 @@
 
   let currentLang = getLang();
   const t = (key) => LANG[currentLang][key] || LANG.zh_CN[key] || key;
+  const extVersion = chrome.runtime.getManifest().version;
+
+  function applyVersion() {
+    const verEl = document.getElementById('footerVersion');
+    if (verEl) verEl.textContent = `v${extVersion}`;
+  }
 
   function persistLang(lang) {
     localStorage.setItem('axure_utils_lang', lang);
@@ -93,6 +99,7 @@
 
   // ---- Init ----
   document.addEventListener('DOMContentLoaded', () => {
+    applyVersion();
     applyLanguage();
 
     // Language selector
