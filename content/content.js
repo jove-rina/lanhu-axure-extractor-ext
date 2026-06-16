@@ -394,7 +394,7 @@
     const m = { id: nextModuleId++, title: '', contents: [] };
     modules.push(m);
     renderModuleList();
-    clampFloaterPosition();
+    scheduleClampFloaterPosition();
     saveModules();
     setStatus(_t("statusModules", modules.length));
   }
@@ -425,7 +425,7 @@
 
   function addContentEntry(moduleId) {
     const m = modules.find(x => x.id === moduleId);
-    if (m) { m.contents.push(''); renderModuleList(); clampFloaterPosition(); saveModules(); }
+    if (m) { m.contents.push(''); renderModuleList(); scheduleClampFloaterPosition(); saveModules(); }
   }
 
   function removeContentEntry(moduleId, entryIdx) {
@@ -597,6 +597,7 @@
           collapsedModuleIds.add(mid); // 收起
         }
         renderModuleList();
+        scheduleClampFloaterPosition();
       });
     });
 
@@ -968,6 +969,7 @@ textarea::-webkit-scrollbar-thumb{background:#373a40;border-radius:2px}
         collapsedModuleIds.clear();
       }
       renderModuleList();
+      scheduleClampFloaterPosition();
     });
 
     // 全选
@@ -989,7 +991,7 @@ textarea::-webkit-scrollbar-thumb{background:#373a40;border-radius:2px}
       const remainingIds = new Set(modules.map(m => m.id));
       collapsedModuleIds = new Set([...collapsedModuleIds].filter(id => remainingIds.has(id)));
       renderModuleList();
-      clampFloaterPosition();
+      scheduleClampFloaterPosition();
       saveModules();
       setStatus(_t("statusDeleted", modules.length));
     });
@@ -1053,7 +1055,7 @@ textarea::-webkit-scrollbar-thumb{background:#373a40;border-radius:2px}
         const up = () => {
           if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
           const gRect = ghost.getBoundingClientRect();
-          floater.style.transform = `translate(${gRect.left}px, ${gRect.top}px)`;
+          setFloaterPosition(gRect.left, gRect.top);
           floater.style.opacity = '1';
           floater.style.willChange = '';
           ghost.remove();
@@ -1180,20 +1182,38 @@ textarea::-webkit-scrollbar-thumb{background:#373a40;border-radius:2px}
   function hideFloater() { if (floater) floater.style.display = 'none'; }
   function removeFloater() { if (floater) { floater.remove(); floater = null; } }
 
-  /** 将浮窗位置钳制在可视边界内 */
+  /** 读取浮窗当前可视位置（不受 bottom/right/transform 混用影响） */
+  function getFloaterPosition() {
+    const r = floater.getBoundingClientRect();
+    return { x: r.left, y: r.top, w: r.width, h: r.height };
+  }
+
+  /** 统一定位：仅用 transform，避免与 bottom/right/left/top 冲突 */
+  function setFloaterPosition(x, y) {
+    floater.style.left = '0';
+    floater.style.top = '0';
+    floater.style.bottom = 'auto';
+    floater.style.right = 'auto';
+    floater.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+  }
+
+  /** 高度变化后，仅在超出可视区域时才调整位置 */
   function clampFloaterPosition() {
     if (!floater || floater.style.display === 'none') return;
-    const r = floater.getBoundingClientRect();
     const vw = window.innerWidth, vh = window.innerHeight;
-    let x = parseFloat(floater.style.left) || r.left;
-    let y = parseFloat(floater.style.top) || r.top;
-    const fw = r.width, fh = r.height;
+    const { x, y, w, h } = getFloaterPosition();
+    let nx = x, ny = y;
     let changed = false;
-    if (x + fw > vw) { x = vw - fw; changed = true; }
-    if (x < 0) { x = 0; changed = true; }
-    if (y + fh > vh) { y = vh - fh; changed = true; }
-    if (y < 0) { y = 0; changed = true; }
-    if (changed) { floater.style.left = x + 'px'; floater.style.top = y + 'px'; }
+    if (nx + w > vw) { nx = vw - w; changed = true; }
+    if (nx < 0) { nx = 0; changed = true; }
+    if (ny + h > vh) { ny = vh - h; changed = true; }
+    if (ny < 0) { ny = 0; changed = true; }
+    if (changed) setFloaterPosition(nx, ny);
+  }
+
+  /** 等 DOM 布局完成后再钳制（新增/展开模块后高度才稳定） */
+  function scheduleClampFloaterPosition() {
+    requestAnimationFrame(() => clampFloaterPosition());
   }
 
   function setStatus(msg) {
