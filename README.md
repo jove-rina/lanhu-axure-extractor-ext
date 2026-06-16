@@ -1,7 +1,9 @@
 # 🧩 Axure Utilities — 蓝湖 Axure 文档构建器
 
-> 一款 Chrome / Edge 浏览器扩展，专为 **蓝湖 (lanhuapp.com) Axure 原型页面** 设计。
-> 告别手动复制粘贴 —— **框选提取页面内容，组装为结构化 Markdown 文档**。
+> 一款 Chrome / Edge 浏览器扩展，专为 **蓝湖 (lanhuapp.com) Axure 原型页面** 设计。  
+> **框选提取页面内容 → 模块化编辑 → 一键导出 Markdown。**
+
+[English](README.en.md) · [更新日志](CHANGELOG.md)
 
 [![Chrome](https://img.shields.io/badge/Chrome-Extension-4285F4?logo=google-chrome&logoColor=white)](https://chrome.google.com/webstore)
 [![Edge](https://img.shields.io/badge/Edge-Extension-0078D7?logo=microsoft-edge&logoColor=white)](https://microsoftedge.microsoft.com/addons)
@@ -10,323 +12,261 @@
 
 ---
 
-## 📖 产品介绍
+## 目录
 
-产品经理、交互设计师和开发每天都要面对蓝湖上的 Axure 原型 —— 查看需求、对照表格、整理文档。Axure Utilities 让这个过程变得高效：
-
-**你在蓝湖 Axure 页面上框选任意区域 → 自动识别表格或文本 → 填入模块化文档 → 一键导出 Markdown。**
-
-不再需要：截图 → 粘贴到文档 → 手打表格 → 调整格式。只需要：选中 → 确认 → 继续。
-
----
-
-## ✨ 核心能力
-
-### 🎯 框选拾取 — 所见即所得
-
-无需理解 DOM 结构，无需手动选取元素。在页面上**拖拽框选**任意矩形区域：
-
-- **框选表格区域** → 自动识别 Axure 标准组件（`table_cell`、`_形状1`、`box_1` 等），按行列重组为 Markdown 表格
-- **框选文本区域** → 提取区域内所有可见文本，合并为段落
-- **智能降级**：区域内元素不足时自动降级为文本提取，确保总有结果
-
-### 🧠 智能表格识别
-
-Axure 的表格渲染方式多样 —— 有原生 `<table>`，也有 div + CSS 模拟表格。扩展统一处理：
-
-- 识别 Axure 默认 CSS class 体系的组件
-- 按 **Y 坐标分组为行**（容差 8px 对齐）、按 **X 坐标排序为列**
-- 自动**补齐缺失列**、**修剪尾部空列**
-- 输出标准管道符 Markdown 表格，可直接用于文档、Wiki、AI 工具
-
-### 📦 模块化文档构建
-
-以 **「模块」** 为单位组织文档结构，每个模块包含：
-
-- **标题**：从页面拾取，作为文档二级标题
-- **多条内容条目**：每条独立拾取（表格或文本），支持拖拽排序
-
-模块支持：
-- **拖拽排序** — 拖拽模块卡片调整顺序
-- **独立展开/收起** — 逐个模块折叠，长文档时聚焦核心
-- **全选/批量删除** — 勾选模块快速清理
-- **编辑弹窗** — 分栏 Markdown 编辑器，支持撤销/重做、拾取填充、全屏编辑
-- **模块预览/复制/下载** — 单模块独立导出，标题统一为二级标题 `##`
-
-### 🔄 跨 iframe 拾取
-
-蓝湖的 Axure 原型通常嵌套在 iframe 中。扩展通过**广播机制**实现：
-
-- 顶层 frame 显示浮动操作面板
-- iframe 内激活拾取能力，用户在 iframe 内框选
-- 提取结果通过 `postMessage` 传回顶层，填入对应条目
-- 无需手动切换 frame，全程无缝
-
-### 💾 按页自动保存
-
-按蓝湖页面的 `versionId + pageId` 自动缓存模块数据：
-
-- **切换页面不丢失** — 换个页面继续看，回来时数据还在
-- **关闭浏览器再开** — 模块数据持久化到 `chrome.storage.local`
-- **下次打开自动恢复** — 重新点击扩展图标，断点续编
-
-### 🌙 深色玻璃态 UI
-
-为长时间查看原型优化的视觉体验：
-
-- 全暗色主题（`#1a1b1e` 底色）
-- 暖金色（`#f08c00`）强调色
-- 可拖拽浮动面板，不遮挡页面内容
-- 内联 SVG 图标（无外部资源依赖）
-- 统一细滚动条（6px 暗色圆角）
-- 固定定位 Tooltip，按钮悬停提示不被裁剪
-
-### 🌐 中英文双语
-
-- 弹出窗口和浮动面板均支持中文 / English 即时切换
-- 浏览器语言自动检测，首次打开即适配
-- 选择偏好后持久记忆
+- [产品介绍](#产品介绍)
+- [功能一览](#功能一览)
+- [快速开始](#快速开始)
+- [功能详解](#功能详解)
+  - [文档构建浮框](#文档构建浮框)
+  - [框选拾取](#框选拾取)
+  - [模块编辑弹窗](#模块编辑弹窗)
+  - [预览与导出](#预览与导出)
+  - [按页保存与页面切换](#按页保存与页面切换)
+  - [界面与交互](#界面与交互)
+- [安装说明](#安装说明)
+- [项目结构](#项目结构)
+- [技术说明](#技术说明)
+- [常见问题](#常见问题)
+- [贡献与许可](#贡献与许可)
 
 ---
 
-## 🔧 安装说明
+## 产品介绍
+
+产品经理、交互设计师和开发每天都要在蓝湖上查看 Axure 原型、对照表格、整理需求文档。Axure Utilities 将这一过程压缩为：
+
+**在原型页框选区域 → 自动识别表格/文本 → 填入模块化文档 → 预览 / 复制 / 下载 Markdown。**
+
+无需再：截图 → 粘贴 → 手打表格 → 反复调整格式。
+
+---
+
+## 功能一览
+
+| 类别 | 能力 |
+|------|------|
+| **内容提取** | 拖拽框选；Axure 表格智能识别；文本降级提取；跨 iframe 拾取 |
+| **文档构建** | 模块化标题 + 多条目；拖拽排序；展开/收起；全选/批量删除 |
+| **编辑增强** | 独立编辑弹窗；分栏 Markdown 编辑器；撤销/重做；拾取填充 |
+| **导出** | 整文档 / 单模块：预览、复制、下载；文件名含真实页面标题 |
+| **持久化** | 按 `versionId + pageId` 自动保存；切换页面提示与恢复 |
+| **体验** | 深色 UI；可拖拽浮框；固定 Tooltip；中英文切换 |
+
+---
+
+## 快速开始
+
+```
+1. 登录蓝湖 → 打开 Axure 原型页
+2. 点击扩展图标 →「📄 打开文档构建器」
+3. 点击「新增模块」→ 自动滚动并聚焦新模块
+4. 点击 🎯 拾取 → 在页面上框选标题或内容区域
+5. 重复添加模块/条目，或使用「编辑」在弹窗中批量修改
+6. 底部「预览 / 复制 / 下载」导出整份文档
+```
+
+> 若浮框未出现：请**刷新页面**后重试，并确认 URL 包含 `lanhuapp.com`。
+
+---
+
+## 功能详解
+
+### 文档构建浮框
+
+浮框固定在页面右下角（可拖拽），是日常编辑的主界面：
+
+- **工具栏**：新增模块、展开/收起全部、全选、批量删除
+- **模块卡片**：标题预览、复选框、操作按钮组
+- **模块操作**（每组按钮融合排列，悬停显示提示）：
+  - 编辑 / 预览 / 复制 / 下载
+  - 上移 / 下移 / 删除
+- **模块内容区**：标题输入 + 多条内容条目（拾取、排序、删除）
+- **底部栏**：整文档预览、复制、下载
+- **聚焦模式**：点击模块后高亮当前模块，其余模块淡化显示
+- **新增模块**：默认含空标题与一条空条目，并自动滚动到可见位置
+
+### 框选拾取
+
+- 点击 🎯 后进入拾取模式，在 Axure 页面（含 iframe 内）**拖拽框选**矩形区域
+- **表格**：识别 `table_cell`、`_形状1` 等 Axure 组件，按 Y/X 坐标重组为 Markdown 表格
+- **文本**：区域内可见文本合并为段落；元素不足时自动降级为文本提取
+- **跨 iframe**：顶层显示浮框，子 frame 内框选，结果经 `postMessage` 回填
+- **覆盖模式**：同一字段继续拾取会覆盖已有内容
+
+### 模块编辑弹窗
+
+点击模块「编辑」打开独立弹窗，适合长文与 Markdown 精细编辑：
+
+| 能力 | 说明 |
+|------|------|
+| **布局** | 默认宽度 60%、高度 80vh（最高 750px）；可拖拽移动 |
+| **窗口控制** | 最小化 / 还原、全屏 / 退出全屏、关闭 |
+| **标题编辑** | 输入框 + 拾取按钮；拾取时弹窗可收至左下角 |
+| **条目编辑** | 每条可折叠/展开；内容区默认 400px 高，可拖拽调整 |
+| **Markdown 编辑器** | 源码 / 分栏 / 预览三种视图；加粗、斜体、链接等快捷插入 |
+| **撤销 / 重做** | 编辑器内文本操作可撤销 |
+| **拾取填充** | 拾取完成后 toast 提示填充的是标题还是内容 |
+| **保存策略** | 仅点击「保存」才写入模块数据；切换页面时自动关闭弹窗 |
+
+### 预览与导出
+
+**整文档**
+
+- 结构：`# 页面标题` + `## 模块标题` + 条目内容
+- 页面标题取自 Axure iframe 内实际页面名（非蓝湖壳页 title）
+- 下载文件名：`页面标题_日期.md`
+
+**单模块**
+
+- 预览 / 复制 / 下载独立 Markdown
+- 模块标题统一为 `##` 二级标题（与整文档结构一致）
+
+**预览窗口**
+
+- 深色主题 HTML 预览（基于 `marked`）
+- 宽表格支持横向滚动
+- 滚动条样式与扩展内 UI 一致
+
+### 按页保存与页面切换
+
+- 缓存 key：`lh_{versionId}_{pageId}`，存入 `chrome.storage.local`
+- 切换蓝湖页面时：当前页数据自动保存
+- 可选全屏提示说明如何重新打开构建器；支持「不再提示」
+- 关闭浏览器后数据仍保留（清除浏览器数据除外）
+
+### 界面与交互
+
+- **语言**：Popup 中选择中文 / English / 跟随浏览器，浮框与编辑弹窗同步更新
+- **Tooltip**：固定定位，不被模块 `overflow` 裁剪
+- **滚动条**：浮框、编辑弹窗、预览页统一 6px 暗色细滚动条
+- **按钮**：统一规格与 hover 反馈；输入框 focus 高亮
+
+---
+
+## 安装说明
 
 ### 前置条件
 
 | 项目 | 要求 |
 |------|------|
-| 浏览器 | Google Chrome 88+ 或 Microsoft Edge 88+ |
-| 权限 | 无特殊权限要求，标准扩展安装即可 |
-| 账号 | 需要蓝湖 (lanhuapp.com) 账号以访问原型页面 |
+| 浏览器 | Chrome 88+ 或 Edge 88+ |
+| 站点 | 蓝湖 Axure 页面（`lanhuapp.com`） |
+| 权限 | 标准扩展安装即可 |
 
-### 手动安装（推荐，开发者模式）
+### 开发者模式安装
 
-这是当前唯一安装方式（商店上架筹备中），全程 2 分钟：
+1. 克隆或下载本仓库  
+   `git clone https://github.com/jove-rina/lanhu-axure-extractor-ext.git`
+2. 打开 `chrome://extensions` 或 `edge://extensions`
+3. 开启「开发者模式」→「加载已解压的扩展」
+4. 选择项目根目录 → 工具栏出现扩展图标即成功
 
-**步骤 1：获取扩展文件**
+### 打包发布（可选）
 
-方式 A — 克隆仓库（推荐）：
-```bash
-git clone https://github.com/jove-rina/lanhu-axure-extractor-ext.git
+```powershell
+.\scripts\pack.ps1
 ```
 
-方式 B — 下载 ZIP：
-访问 [GitHub 仓库](https://github.com/jove-rina/lanhu-axure-extractor-ext) → 点击「Code」→「Download ZIP」→ 解压到本地文件夹
+输出至 `dist/lanhu-axure-extractor-ext-v{version}.zip`（已排除 `.git`、`demo`、`scripts`、`dist` 等）。
 
-**步骤 2：打开扩展管理页面**
+### 商店安装
 
-| 浏览器 | 地址栏输入 |
-|--------|-----------|
-| Chrome | `chrome://extensions` |
-| Edge | `edge://extensions` |
-
-**步骤 3：开启开发者模式**
-
-页面右上角找到「开发者模式」开关，点击开启。
-
-**步骤 4：加载扩展**
-
-- 点击「**加载已解压的扩展**」（Load unpacked）
-- 文件选择器中选择克隆或解压后的 `lanhu-axure-extractor-ext` 文件夹
-- 点击「选择文件夹」
-
-**步骤 5：确认安装**
-
-- 扩展卡片出现，图标显示在浏览器工具栏右上角 🧩
-- 点击图标 → 弹出窗口显示 **"Axure Utilities"** → 安装成功 ✅
-
-> **提示**：如需固定到工具栏方便使用，点击扩展拼图图标 → 找到 Axure Utilities → 点击 📌 固定。
-
-### 从商店安装（等待上架）
-
-> 已准备好发布包，待 Chrome Web Store / Edge Add-ons 审核通过后可通过商店一键安装。
+Chrome Web Store / Edge Add-ons 上架筹备中。
 
 ---
 
-## 🚀 使用指南
-
-### 快速上手
-
-```
-1. 登录蓝湖 → 打开一个 Axure 原型页面
-2. 点击浏览器工具栏扩展图标 🧩
-3. 点击「📄 打开文档构建器」
-   └─ 页面右下角出现浮动面板
-4. 点击「新增模块」
-   └─ 列表中新增一个空白模块
-5. 点击模块的 🎯 拾取按钮（标题或内容条目均可）
-   └─ 状态提示「拾取已激活」
-6. 在页面上拖拽框选目标区域
-   └─ 释放鼠标 → 自动识别填入
-7. 重复步骤 4~6，构建完整的需求文档
-8. 点击「预览」查看 → 点击「下载」保存为 .md 文件
-```
-
-### 场景示例
-
-**场景：提取 Axure 的表格需求**
-
-1. 新建模块 → 点击标题旁的 🎯 → 框选 Axure 页面上的表格标题区域 → 标题自动填入
-2. 点击内容区域的 🎯 → 精确框选整个表格 → 表格自动识别为 Markdown 格式
-3. 如需多个表格：该模块下继续「新增」内容条目 → 再拾取另一个表格
-4. 继续新建模块，整理不同功能模块的需求
-
-### 操作技巧
-
-- **框选精确度**：框选表格时尽量贴合表格边缘，行列识别效果最佳
-- **模块排序**：左上角 `☰` 手柄拖拽调整顺序
-- **折叠长文档**：点击模块头部收起/展开，只关注当前模块
-- **语言切换**：浮窗标题栏右侧的语言选择器随时切换
-- **切换页面**：换页时自动保存，回来继续编辑
-
----
-
-## 📂 项目结构
+## 项目结构
 
 ```
 lanhu-axure-extractor-ext/
-├── manifest.json                 # 扩展配置文件 (Manifest V3)
+├── manifest.json           # Manifest V3 配置
+├── LICENSE                 # GPL-3.0
+├── CHANGELOG.md            # 中文更新日志
+├── CHANGELOG.en.md         # English changelog
+├── README.md / README.en.md
 │
-├── popup/                        # 弹出窗口
-│   ├── popup.html                # 弹出窗口 UI（扩展图标点击显示）
-│   ├── popup.css                 # 深色主题样式
-│   └── popup.js                  # 交互逻辑 + 语言选择
-│
-├── content/                      # 内容脚本（注入蓝湖页面）
-│   ├── content.js                # 核心脚本：浮动面板、框选拾取、模块管理、Markdown 构建
-│   └── marked.min.js             # Markdown 渲染库 (用于预览)
-│
-├── background/
-│   └── background.js             # 后台 Service Worker：帧广播、消息路由、状态管理
-│
-├── icons/                        # 扩展图标
-│   ├── icon16.png
-│   ├── icon48.png
-│   ├── icon128.png
-│   └── icon.svg                  # SVG 源文件
-│
-├── _locales/                     # 国际化翻译
-│   ├── zh_CN/messages.json       # 中文
-│   └── en/messages.json          # English
-│
-└── README.md
+├── popup/                  # 扩展弹窗（打开构建器、语言选择）
+├── content/                # 内容脚本（浮框、拾取、编辑、导出）
+│   ├── content.js
+│   └── marked.min.js
+├── background/             # Service Worker（帧广播、消息路由）
+├── icons/
+├── _locales/               # chrome.i18n 文案
+└── scripts/
+    └── pack.ps1            # 打包脚本
 ```
 
 ---
 
-## ⚙️ 技术栈
+## 技术说明
 
-| 模块 | 技术选型 |
-|------|---------|
+### 技术栈
+
+| 模块 | 选型 |
+|------|------|
 | 扩展框架 | Chrome Manifest V3 |
-| UI | 原生 HTML + CSS（深色玻璃态，内联 SVG 图标，零外部依赖） |
-| 内容提取 | DOM 遍历 + 拖拽框选 + Y 坐标分组表格识别算法 |
-| Markdown 构建 | 自建表格/文本 → Markdown 转换引擎 |
-| Markdown 渲染 | `marked`（仅预览用） |
-| 跨 frame 通信 | `chrome.runtime.sendMessage` + `window.postMessage` 双向 |
-| 数据持久化 | `chrome.storage.local`（按 `versionId+pageId` 分页缓存） |
-| 后台 | Service Worker（无持久化状态） |
-| 国际化 | `chrome.i18n` API + 内联 fallback 翻译表 |
+| UI | 原生 HTML + CSS，内联 SVG，零 UI 框架依赖 |
+| 内容提取 | DOM 遍历 + 框选 + Y/X 坐标表格算法 |
+| Markdown | 自建转换 + `marked` 预览渲染 |
+| 通信 | `chrome.runtime.sendMessage` + `window.postMessage` |
+| 存储 | `chrome.storage.local` |
+| 国际化 | `chrome.i18n` + 内联 fallback 表 |
 
----
-
-## 🔄 工作原理
+### 工作流程
 
 ```
-用户点击扩展图标 🧩
-    │
-    ▼
-Popup 弹窗 → 点击「📄 打开文档构建器」
-    │
-    ▼
-Background Service Worker 通过 webNavigation.getAllFrames
-获取当前页所有 frame 信息
-    │
-    ▼
-向每个符合条件的 frame 广播 'open-builder' 指令
-    │
-    ├── 顶层 frame (top)    → 显示浮动面板
-    └── 子 frame (iframe)   → 激活拾取能力
-                              (监听 mousedown/mousemove/mouseup)
-    │
-    ▼
-用户操作浮动面板：
-    新增模块 → 点击 🎯 拾取 → 在页面拖拽框选
-    │
-    ▼
-框选区域 → DOM 遍历收集组件 → 算法识别：
-    ├── 表格（4 个以上组件 + 多行多列）→ 标准 Markdown 表格
-    └── 文本（组件不足或无表格结构）→ 文本段落
-    │
-    ▼
-结果通过 postMessage 传回顶层 frame → 填入对应模块条目
-    │
-    ▼
-模块数据按当前页 versionId+pageId → chrome.storage.local 缓存
-    │
-    ▼
-点击「预览」→ marked 渲染为 HTML 预览
-点击「下载」→ 拼接 # 页面标题 + ## 模块标题 + 内容 → 导出 .md
+Popup「打开文档构建器」
+    → Background 广播 open-builder 到所有 lanhu frame
+    → 顶层 frame：创建并显示浮框
+    → 子 iframe：激活拾取监听
+
+用户框选 → 表格/文本识别 → postMessage 回填模块
+    → 按 versionId+pageId 写入 storage
+
+预览/下载 → 拼接 Markdown → marked 渲染或 Blob 下载
 ```
 
-### 核心设计要点
+### 设计要点
 
-| 设计决策 | 说明 |
-|---------|------|
-| **浮窗只在顶层 frame** | 通过 `window.top === window.self` 判断，避免多个 iframe 各显示一个面板 |
-| **拾取跨 iframe** | Background 广播 'start-picker' / 'stop-picker' 到所有 frame；子 frame 结果通过 `postMessage({action:'picker-result',...})` 回传顶层 |
-| **表格识别** | 收集框选区域内 Axure 标准组件 → Y 坐标分组（容差 8px）→ X 坐标排序 → 补齐/修剪空列 → Markdown |
-| **数据隔离** | 每页独立缓存 key（`lh_{versionId}_{pageId}`），互不干扰 |
+| 决策 | 说明 |
+|------|------|
+| 浮框仅在顶层 | `window.top === window.self`，避免多 iframe 重复面板 |
+| 跨 iframe 拾取 | Background 广播 + iframe 内脚本 + postMessage 回传 |
+| 真实页面标题 | iframe postMessage 同步 Axure `header.title` |
+| 数据隔离 | 每页独立 storage key，互不影响 |
 
----
+### 使用限制
 
-## ⚠️ 使用限制
-
-- **域名限制**：仅在 `lanhuapp.com` 及其子域名下工作
-- **跨域 iframe**：浏览器安全策略限制扩展直接访问跨域 iframe 的 DOM。当前通过顶层 `postMessage` + iframe 内自运行脚本绕过，部分复杂场景可能需要手动点击 iframe 内部激活
-- **提取质量**：表格识别依赖 Axure 默认 CSS class（`ax_default.table_cell` 等）。若原型使用了深度自定义的组件命名，提取效果可能下降
-- **内容脚本**：使用 `all_frames: true` 自动注入所有 frame
+- 仅支持 `lanhuapp.com` 及子域
+- 跨域 iframe 需用户先点击 iframe 获取焦点
+- 表格识别依赖 Axure 默认 CSS class，深度自定义组件可能降级
 
 ---
 
-## ❓ 常见问题
+## 常见问题
 
-**Q: 点击「打开文档构建器」后浮窗没出现？**
-A: 刷新页面重试。确认当前在蓝湖 Axure 页面（地址栏包含 `lanhuapp.com`）。
+**浮框打不开？**  
+刷新页面后重试；在 `chrome://extensions` 重新加载扩展；打开 DevTools 查看 Console 是否有报错。
 
-**Q: 框选提取的内容不准确？**
-A: 提取质量取决于 Axure 渲染方式。尝试更精确地框选 —— 确保框选区域完整包裹目标表格或文本块。如果原型使用了自定义 CSS class，可以提 Issue 适配。
+**拾取无反应？**  
+先点击 iframe 内部再拾取；确认拾取模式已激活（状态栏有提示）。
 
-**Q: 跨域 iframe 中拾取没反应？**
-A: 先点击 iframe 内部让页面获得焦点，再操作浮窗拾取。扩展已自动注入所有同源 frame。
+**表格识别不准？**  
+尽量紧贴表格边缘框选；自定义组件可提 Issue 适配。
 
-**Q: 模块数据会丢失吗？**
-A: 按 `versionId+pageId` 缓存到 `chrome.storage.local`，关闭浏览器不丢失。清除浏览器缓存会删除数据。
+**数据会丢吗？**  
+按页持久化到 `chrome.storage.local`；清除浏览器数据会丢失。导入/导出功能规划中。
 
-**Q: 如何迁移或备份数据？**
-A: chrome.storage.local 是浏览器本地的，无法直接导出。后续版本会考虑增加数据导入导出功能。
-
----
-
-## 🤝 贡献
-
-产品的完善离不开社区的参与。欢迎：
-
-- **提交 Issue**：遇到 Bug 或有功能建议 → [新建 Issue](https://github.com/jove-rina/lanhu-axure-extractor-ext/issues)
-- **提交 PR**：代码贡献 → 先 fork 仓库，开发完成后提交 Pull Request
-
-```bash
-git checkout -b feature/your-feature
-git commit -m 'feat: add your feature'
-git push origin feature/your-feature
-```
+**如何切换语言？**  
+在 Popup 右上角语言下拉框选择，浮框文案即时更新。
 
 ---
 
-## 📄 License
+## 贡献与许可
 
-本项目采用 [GNU General Public License v3.0](LICENSE)（GPL-3.0）授权 © 2026 Jove Rina
+欢迎 [提交 Issue](https://github.com/jove-rina/lanhu-axure-extractor-ext/issues) 或 Pull Request。
 
-## 📋 更新日志
+**许可**：[GNU GPL v3.0](LICENSE) © 2026 Jove Rina
 
-详见 [CHANGELOG.md](CHANGELOG.md)（[English](CHANGELOG.en.md)）
+**更新日志**：[CHANGELOG.md](CHANGELOG.md) · [English](CHANGELOG.en.md)
