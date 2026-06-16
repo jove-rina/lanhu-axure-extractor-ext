@@ -61,7 +61,7 @@ export function renderModuleList() {
         <div class="lh-field-block" style="margin-bottom:10px;">
           <span class="lh-field-label">${t('title')}</span>
           <div class="lh-plain-row">
-            <input id="__lh_mt_${m.id}" draggable="false" value="${escHtml(m.title)}" placeholder="${t('pick')}" class="lh-plain-input">
+            <input id="__lh_mt_${m.id}" draggable="false" value="${escHtml(m.title)}" placeholder="${t('titlePlaceholder')}" class="lh-plain-input">
             <button data-pick="${m.id}:title" data-tip="${t('pickTitle')}" style="${BTN_ACCENT_XS}">${ICON.target} ${t('pick')}</button>
           </div>
         </div>
@@ -77,7 +77,7 @@ export function renderModuleList() {
             <button data-rmc="${m.id}:${ci}" data-tip="${t('delete')}" style="${BTN_DANGER_XS}">${ICON.trash}</button>
           </div>
         </div>
-        <textarea id="__lh_mc_${m.id}_${ci}" draggable="false" rows="2" placeholder="${t('content')} ${ci+1}" class="lh-scrollbar lh-plain-textarea">${escHtml(c)}</textarea>
+        <textarea id="__lh_mc_${m.id}_${ci}" draggable="false" rows="2" placeholder="${t('contentPlaceholder', ci + 1)}" class="lh-scrollbar lh-plain-textarea">${escHtml(c)}</textarea>
       </div>`).join('')}
         </div>
       </div>

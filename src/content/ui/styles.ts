@@ -37,7 +37,7 @@ export const LH_UI_CSS = `
 .lh-plain-row{display:flex;align-items:center;gap:8px;margin-bottom:0;flex-shrink:0;min-width:0;justify-content:flex-start}
 .lh-plain-input,.lh-plain-textarea,.lh-edit-ta{background:#141517;border:1px solid #373a40;border-radius:6px;padding:8px 10px;font-size:13px;color:#e0e0e0;outline:none;transition:border-color .15s ease,box-shadow .15s ease;box-sizing:border-box;text-align:left}
 .lh-plain-textarea,.lh-edit-ta{color:#c1c2c5}
-.lh-plain-input::placeholder,.lh-plain-textarea::placeholder,.lh-edit-ta::placeholder{color:rgba(255,255,255,.88);opacity:1}
+.lh-plain-input::placeholder,.lh-plain-textarea::placeholder,.lh-edit-ta::placeholder{color:#5c5f66;opacity:1}
 .lh-plain-input:focus,.lh-plain-textarea:focus,.lh-edit-ta:focus{border-color:#f08c00;box-shadow:0 0 0 1px rgba(240,140,0,.28);color:#fff}
 .lh-hint-text{color:rgba(255,255,255,.88)}
 .lh-plain-input{flex:1;min-width:0}

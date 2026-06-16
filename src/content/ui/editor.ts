@@ -650,7 +650,7 @@ export function showModuleEditDialog(moduleId: number): void {
         <div class="lh-edit-entry-body" style="${collapsed ? 'display:none;' : `height:${entryH}px;`}">
           <div class="lh-edit-split">
             <div class="lh-edit-editor" style="flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;height:100%;">
-              <textarea class="lh-edit-ta lh-scrollbar" style="${mdTaStyle}">${escHtml(c)}</textarea>
+              <textarea class="lh-edit-ta lh-scrollbar" placeholder="${t('contentPlaceholder', ci + 1)}" style="${mdTaStyle}">${escHtml(c)}</textarea>
             </div>
             <div class="lh-edit-preview-wrap" style="flex:1;display:flex;flex-direction:column;background:#141517;overflow:hidden;min-width:0;min-height:0;height:100%;">
               <div class="lh-md-preview lh-scrollbar" style="flex:1;height:100%;overflow:auto;padding:10px 12px;min-height:0;box-sizing:border-box;"></div>
@@ -688,7 +688,7 @@ export function showModuleEditDialog(moduleId: number): void {
           <button id="__lh_edit_expand" data-tip="${t('expandCollapse')}" style="${BTN_MUTED}">${ICON.up}${ICON.down} ${t('expandCollapse')}</button>
         </div>
         <div class="lh-plain-row">
-          <input id="__lh_edit_title" type="text" value="${escHtml(draft.title)}" placeholder="${t('title')}" class="lh-plain-input">
+          <input id="__lh_edit_title" type="text" value="${escHtml(draft.title)}" placeholder="${t('titlePlaceholder')}" class="lh-plain-input">
           <button id="__lh_edit_pick_title" data-tip="${t('pickTitle')}" style="${BTN_ACCENT_XS}">${ICON.target} ${t('pick')}</button>
         </div>
       </div>

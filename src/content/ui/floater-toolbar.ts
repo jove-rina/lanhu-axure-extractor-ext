@@ -60,7 +60,7 @@ export function applyLanguageToEditDialog() {
   const titleLabel = shell.querySelector('#__lh_edit_title_label');
   if (titleLabel) titleLabel.textContent = t('title');
   const titleInp = qsInput(shell, '#__lh_edit_title');
-  if (titleInp) titleInp.placeholder = t('title');
+  if (titleInp) titleInp.placeholder = t('titlePlaceholder');
   const pickTitleBtn = asHtmlEl(shell.querySelector('#__lh_edit_pick_title'));
   if (pickTitleBtn) {
     pickTitleBtn.dataset.tip = t('pickTitle');
