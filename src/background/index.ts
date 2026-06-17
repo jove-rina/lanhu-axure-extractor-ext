@@ -140,7 +140,9 @@ async function broadcastToFrames(tabId: number, msg: Record<string, unknown>) {
 
   let success = 0;
   for (const frame of frames) {
-    if (!frame.url || !frame.url.includes('lanhuapp.com')) continue;
+    if (!frame.url) continue;
+    const url = frame.url;
+    if (!url.includes('lanhuapp.com') && !url.includes('mockplus.cn')) continue;
     try {
       await chrome.tabs.sendMessage(tabId, msg, { frameId: frame.frameId });
       success++;
@@ -157,7 +159,9 @@ async function extractAllFrames(tabId: number) {
 
   const results: Array<{ pages?: unknown[]; combinedMarkdown?: string }> = [];
   for (const frame of frames) {
-    if (!frame.url || !frame.url.includes('lanhuapp.com')) continue;
+    if (!frame.url) continue;
+    const url = frame.url;
+    if (!url.includes('lanhuapp.com') && !url.includes('mockplus.cn')) continue;
     try {
       const res = await chrome.tabs.sendMessage(
         tabId,

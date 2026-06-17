@@ -17,7 +17,9 @@
   ],
   "host_permissions": [
     "*://lanhuapp.com/*",
-    "*://*.lanhuapp.com/*"
+    "*://*.lanhuapp.com/*",
+    "*://mockplus.cn/*",
+    "*://*.mockplus.cn/*"
   ],
   "action": {
     "default_popup": "src/popup/index.html",
@@ -36,7 +38,9 @@
     {
       "matches": [
         "*://lanhuapp.com/*",
-        "*://*.lanhuapp.com/*"
+        "*://*.lanhuapp.com/*",
+        "*://mockplus.cn/*",
+        "*://*.mockplus.cn/*"
       ],
       "js": ["src/content/index.ts"],
       "run_at": "document_idle",

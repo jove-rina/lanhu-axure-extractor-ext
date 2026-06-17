@@ -79,7 +79,7 @@ async function openBuilder(): Promise<void> {
   setStatus(t('saving'), 'busy');
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.url?.includes('lanhuapp.com')) {
+    if (!tab?.url?.includes('lanhuapp.com') && !tab?.url?.includes('mockplus.cn')) {
       setStatus(t('notLanhu'), 'error');
       return;
     }

@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WeChat Integration — Hermes Agent Skill</title>
+<meta name="description" content="Connect Hermes Agent to personal WeChat — message send/receive, multi-profile isolation, and troubleshooting." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Noto+Sans+SC:wght@300;400;500;600;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg: #050510;
+  --bg2: #0a0a20;
+  --surface: rgba(18,18,34,.72);
+  --surface-border: rgba(167,139,250,.15);
+  --text: #eeeef8;
+  --text2: #8888bb;
+  --accent: #a78bfa;
+  --cyan: #22d3ee;
+  --pink: #e879f9;
+  --green: #6ee7b7;
+  --orange: #fbbf24;
+  --gradient-1: linear-gradient(135deg,#a78bfa,#22d3ee);
+  --gradient-2: linear-gradient(135deg,#22d3ee,#e879f9);
+  --radius: 20px;
+  --radius-sm: 10px;
+  --font: 'Inter','Noto Sans SC',system-ui,sans-serif;
+  --mono: 'JetBrains Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  font-family:var(--font);
+  background:var(--bg);
+  color:var(--text);
+  line-height:1.7;
+  overflow-x:hidden;
+  min-height:100vh;
+}
+::selection{background:rgba(167,139,250,.35)}
+
+/* ── Canvas ── */
+#canvas-bg{position:fixed;inset:0;z-index:0;pointer-events:none}
+
+/* ── Nav ── */
+.nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  backdrop-filter:blur(20px) saturate(1.4);
+  -webkit-backdrop-filter:blur(20px) saturate(1.4);
+  background:rgba(5,5,16,.6);
+  border-bottom:1px solid var(--surface-border);
+  padding:0 28px;
+}
+.nav-inner{
+  max-width:1200px;margin:0 auto;
+  display:flex;align-items:center;justify-content:space-between;
+  height:64px;
+}
+.nav-back a{
+  color:var(--text2);text-decoration:none;font-size:13px;font-weight:500;
+  display:flex;align-items:center;gap:4px;transition:color .3s;
+}
+.nav-back a:hover{color:var(--accent)}
+.nav-brand{
+  font-size:16px;font-weight:700;
+  background:var(--gradient-1);-webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  font-family:var(--mono);
+}
+.nav-right{display:flex;align-items:center;gap:20px}
+.nav-links{display:flex;gap:24px}
+.nav-links a{
+  color:var(--text2);text-decoration:none;font-size:13px;font-weight:500;
+  position:relative;transition:color .3s;
+}
+.nav-links a::after{
+  content:'';position:absolute;bottom:-4px;left:0;width:0;height:2px;
+  background:var(--gradient-1);border-radius:2px;
+  transition:width .3s;
+}
+.nav-links a:hover{color:var(--text)}
+.nav-links a:hover::after{width:100%}
+.lang-select{
+  padding:5px 10px;border-radius:100px;
+  background:rgba(167,139,250,.1);
+  border:1px solid rgba(167,139,250,.2);
+  color:var(--accent);font-size:12px;font-weight:600;
+  cursor:pointer;transition:all .3s;font-family:var(--font);
+  outline:none;appearance:none;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23a78bfa'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;padding-right:28px;
+}
+.lang-select:hover{background:rgba(167,139,250,.2);border-color:var(--accent)}
+.lang-select option{background:#1a1a2e;color:#eeeef8}
+
+/* ── Hero ── */
+.hero{
+  position:relative;z-index:1;
+  padding:120px 28px 72px;text-align:center;
+}
+.hero-inner{max-width:960px;margin:0 auto}
+.hero-icon{font-size:52px;margin-bottom:20px;display:inline-block;animation:float 4s ease-in-out infinite}
+.hero h1{
+  font-size:clamp(32px,5vw,56px);font-weight:900;
+  background:var(--gradient-1);-webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  letter-spacing:-.5px;
+  margin-bottom:12px;
+}
+.hero-sub{font-size:16px;color:var(--text2);max-width:540px;margin:0 auto}
+.hero-badges{display:flex;justify-content:center;gap:10px;margin-top:24px;flex-wrap:wrap}
+.hero-badge{
+  padding:4px 14px;border-radius:100px;font-size:12px;font-weight:500;
+  background:rgba(167,139,250,.08);border:1px solid rgba(167,139,250,.15);color:var(--accent);
+}
+.hero-badge.green{background:rgba(110,231,183,.08);border-color:rgba(110,231,183,.15);color:var(--green)}
+.hero-badge.pink{background:rgba(232,121,249,.08);border-color:rgba(232,121,249,.15);color:var(--pink)}
+.hero-badge.orange{background:rgba(251,191,36,.08);border-color:rgba(251,191,36,.15);color:var(--orange)}
+
+.install-box{
+  max-width:680px;margin:36px auto 0;
+  background:var(--surface);border:1px solid var(--surface-border);
+  border-radius:var(--radius-sm);text-align:left;
+  backdrop-filter:blur(12px);
+  transition:border-color .3s;
+}
+.install-box:hover{border-color:rgba(167,139,250,.3)}
+.install-header{
+  display:flex;align-items:center;gap:8px;
+  padding:12px 20px;border-bottom:1px solid var(--surface-border);
+  font-size:12px;color:var(--text2);font-weight:600;
+}
+.install-body{
+  padding:16px 20px;
+  font-family:var(--mono);font-size:13px;line-height:2;
+  color:var(--text2);overflow-x:auto;
+}
+.install-body .comment{color:#6b7280}
+.install-body .cmd{color:var(--green)}
+.install-body .string{color:var(--pink)}
+
+/* ── Section ── */
+.section{
+  position:relative;z-index:1;
+  padding:80px 28px;
+}
+.section-inner{max-width:960px;margin:0 auto}
+.section-header{margin-bottom:48px}
+.section-label{
+  font-size:12px;font-weight:600;letter-spacing:3px;
+  color:var(--accent);text-transform:uppercase;margin-bottom:8px;
+  display:flex;align-items:center;gap:8px;
+}
+.section-label::after{
+  content:'';flex:1;height:1px;
+  background:var(--surface-border);max-width:60px;
+}
+.section-title{font-size:clamp(22px,3vw,32px);font-weight:800;margin-bottom:8px}
+.section-desc{color:var(--text2);font-size:14px;max-width:500px}
+
+/* ── Focus Item Grid (3-column) ── */
+.focus-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:16px;
+}
+.focus-item{
+  background:var(--surface);border:1px solid var(--surface-border);
+  border-radius:var(--radius-sm);padding:24px;
+  backdrop-filter:blur(12px);
+  transition:all .5s cubic-bezier(.4,0,.2,1);
+  opacity:0;transform:translateY(30px);
+}
+.focus-item.visible{opacity:1;transform:translateY(0)}
+.focus-item:hover{
+  border-color:var(--accent);
+  transform:translateY(-3px);
+  box-shadow:0 12px 40px rgba(167,139,250,.1);
+}
+.focus-item .icon{font-size:28px;margin-bottom:8px}
+.focus-item h4{font-size:14px;font-weight:700;margin-bottom:6px;color:var(--text)}
+.focus-item p{font-size:12px;color:var(--text2);line-height:1.7}
+
+/* ── Product Section ── */
+.product-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:24px;
+}
+.product-card{
+  background:var(--surface);border:1px solid var(--surface-border);
+  border-radius:var(--radius);padding:28px 32px;
+  backdrop-filter:blur(12px);
+  transition:all .5s cubic-bezier(.4,0,.2,1);
+  opacity:0;transform:translateY(30px);
+}
+.product-card.visible{opacity:1;transform:translateY(0)}
+.product-card:hover{
+  border-color:rgba(167,139,250,.25);
+  transform:translateY(-2px);
+}
+.product-card .card-label{
+  font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+  margin-bottom:12px;
+}
+.product-card .card-label.problem{color:var(--pink)}
+.product-card .card-label.solution{color:var(--green)}
+.product-card h3{font-size:18px;font-weight:700;margin-bottom:10px}
+.product-card p{font-size:14px;color:var(--text2);line-height:1.8}
+
+/* ── Workflow ── */
+.workflow-list{display:flex;flex-direction:column;gap:12px}
+.workflow-step{
+  display:flex;align-items:flex-start;gap:16px;
+  background:var(--surface);border:1px solid var(--surface-border);
+  border-radius:var(--radius-sm);padding:18px 24px;
+  backdrop-filter:blur(12px);
+  transition:all .4s;
+  opacity:0;transform:translateX(-20px);
+}
+.workflow-step.visible{opacity:1;transform:translateX(0)}
+.workflow-step:hover{border-color:rgba(167,139,250,.2);transform:translateX(3px)}
+.workflow-step .step-num{
+  flex-shrink:0;width:32px;height:32px;border-radius:50%;
+  background:var(--gradient-1);display:flex;align-items:center;justify-content:center;
+  font-size:14px;font-weight:700;color:var(--bg);font-family:var(--mono);
+}
+.workflow-step .step-body{flex:1}
+.workflow-step .step-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px}
+.workflow-step .step-desc{font-size:12px;color:var(--text2);line-height:1.7}
+.workflow-step .step-code{
+  margin-top:8px;padding:8px 12px;background:rgba(0,0,0,.3);
+  border-radius:6px;font-family:var(--mono);font-size:12px;
+  color:var(--green);overflow-x:auto;white-space:nowrap;
+}
+
+/* ── Review Table ── */
+.qa-table-wrap{
+  overflow-x:auto;
+  border-radius:var(--radius-sm);
+  border:1px solid var(--surface-border);
+  background:var(--surface);backdrop-filter:blur(12px);
+  opacity:0;transform:translateY(20px);
+  transition:all .5s;
+}
+.qa-table-wrap.visible{opacity:1;transform:translateY(0)}
+.qa-table{
+  width:100%;border-collapse:collapse;
+  font-size:13px;min-width:480px;
+}
+.qa-table thead{
+  background:rgba(167,139,250,.08);
+  border-bottom:1px solid var(--surface-border);
+}
+.qa-table th{
+  padding:12px 18px;text-align:left;
+  font-weight:600;color:var(--accent);font-size:12px;
+  letter-spacing:1px;text-transform:uppercase;
+}
+.qa-table td{
+  padding:12px 18px;border-bottom:1px solid var(--surface-border);
+  color:var(--text2);
+}
+.qa-table tr:last-child td{border-bottom:none}
+.qa-table tr:hover td{color:var(--text);background:rgba(167,139,250,.03)}
+.qa-table .check{color:var(--green)}
+.qa-table .round-final td{font-weight:600;color:var(--accent);background:rgba(167,139,250,.04)}
+
+/* ── Stats ── */
+.stats-row{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:16px;
+  margin-bottom:36px;
+}
+.stat-card{
+  background:var(--surface);border:1px solid var(--surface-border);
+  border-radius:var(--radius-sm);padding:20px;
+  backdrop-filter:blur(12px);text-align:center;
+  transition:all .4s;
+  opacity:0;transform:translateY(20px);
+}
+.stat-card.visible{opacity:1;transform:translateY(0)}
+.stat-card:hover{border-color:rgba(167,139,250,.2);transform:translateY(-2px)}
+.stat-card .num{
+  font-size:36px;font-weight:800;
+  background:var(--gradient-1);-webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  line-height:1.2;
+}
+.stat-card .label{font-size:13px;color:var(--text2);margin-top:4px}
+.stat-card .sub{font-size:11px;color:var(--text2);opacity:.6;margin-top:2px}
+
+/* ── Footer ── */
+.footer{
+  position:relative;z-index:1;
+  border-top:1px solid var(--surface-border);
+  padding:40px 28px 56px;text-align:center;
+}
+.footer p{font-size:13px;color:var(--text2);opacity:.6}
+.footer a{color:var(--accent);text-decoration:none}
+.footer a:hover{text-decoration:underline}
+
+/* ── Animations ── */
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+
+@media(max-width:768px){
+  .nav-links{display:none}
+  .hero{padding:100px 20px 48px}
+  .focus-grid{grid-template-columns:1fr}
+  .product-grid{grid-template-columns:1fr}
+  .stats-row{grid-template-columns:1fr}
+  .section{padding:56px 20px}
+  .section-header{margin-bottom:32px}
+}
+@media(max-width:480px){
+  .hero h1{font-size:28px}
+  .workflow-step{flex-direction:column;gap:10px}
+}
+</style>
+</head>
+<body>
+
+<canvas id="canvas-bg"></canvas>
+
+<!-- ─── Nav ─── -->
+<nav class="nav">
+  <div class="nav-inner">
+    <div class="nav-back">
+      <a href="/">← <span data-i18n="nav.home">首页</span></a>
+    </div>
+    <div class="nav-brand">Jove Rina</div>
+    <div class="nav-right">
+      <div class="nav-links">
+        <a href="#features" data-i18n="nav.features">特性</a>
+        <a href="#workflow" data-i18n="nav.workflow">流程</a>
+        <a href="#qa" data-i18n="nav.qa">审查</a>
+        <a href="https://github.com/jove-rina/jove-hermes-skills">GitHub</a>
+      </div>
+      <select class="lang-select" id="langSelect">
+        <option value="en">EN</option>
+        <option value="zh">中</option>
+      </select>
+    </div>
+  </div>
+</nav>
+
+<!-- ─── Hero ─── -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-icon">💬</div>
+    <h1 data-i18n="hero.title">WeChat Integration</h1>
+    <p class="hero-sub" data-i18n="hero.sub">
+      Connect Hermes Agent to personal WeChat — message send/receive, multi-profile isolation, and troubleshooting.
+    </p>
+    <div class="hero-badges">
+      <span class="hero-badge">🏷️ v1.9.0</span>
+      <span class="hero-badge green">🔧 Hermes Agent</span>
+      <span class="hero-badge pink">✓ iLink Bot API</span>
+    </div>
+    <div class="install-box">
+      <div class="install-header">⚡ <span data-i18n="install.title">快速安装</span></div>
+      <div class="install-body">
+        <span class="comment"># <span data-i18n="install.step1">添加 tap 源</span></span><br />
+        hermes skills tap add <span class="cmd">jove-rina/jove-hermes-skills</span><br />
+        <br />
+        <span class="comment"># <span data-i18n="install.step2">安装 WeChat 集成技能</span></span><br />
+        hermes skills install <span class="string">jove-rina/jove-hermes-skills/hermes-wechat-integration</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Features ─── -->
+<section class="section" id="features">
+  <div class="section-inner">
+    <div class="section-header">
+      <div class="section-label"><span data-i18n="features.label">特性</span></div>
+      <h2 class="section-title" data-i18n="features.title">核心特性</h2>
+      <p class="section-desc" data-i18n="features.desc">六大特性让 WeChat 集成安全、高效、易于管理</p>
+    </div>
+    <div class="focus-grid">
+      <div class="focus-item reveal">
+        <div class="icon">🎯</div>
+        <h4 data-i18n="features.card1.title">QR Code Auth</h4>
+        <p data-i18n="features.card1.desc">Official iLink Bot API, no reverse engineering. QR proxy protocol: AI presents URL, user scans.</p>
+      </div>
+      <div class="focus-item reveal">
+        <div class="icon">🛡️</div>
+        <h4 data-i18n="features.card2.title">Two-Gate Auth</h4>
+        <p data-i18n="features.card2.desc">Policy gate (env vars) + Routing gate (channel_directory.json), diagnosis matrix pinpoints issues</p>
+      </div>
+      <div class="focus-item reveal">
+        <div class="icon">⚡</div>
+        <h4 data-i18n="features.card3.title">context_token Awareness</h4>
+        <p data-i18n="features.card3.desc">Prevents silent message drops: send_message success ≠ delivery. Live connection vs throwaway adapter.</p>
+      </div>
+      <div class="focus-item reveal">
+        <div class="icon">🔒</div>
+        <h4 data-i18n="features.card4.title">Multi-Profile Isolation</h4>
+        <p data-i18n="features.card4.desc">Each Hermes profile with its own WeChat account, zero interference between bots</p>
+      </div>
+      <div class="focus-item reveal">
+        <div class="icon">🌐</div>
+        <h4 data-i18n="features.card5.title">Cross-Platform</h4>
+        <p data-i18n="features.card5.desc">Linux / macOS / Windows Git Bash. Same commands everywhere.</p>
+      </div>
+      <div class="focus-item reveal">
+        <div class="icon">📦</div>
+        <h4 data-i18n="features.card6.title">Token-Efficient</h4>
+        <p data-i18n="features.card6.desc">Core SKILL.md is 4.3K tokens. FAQ and placeholder table lazy-loaded. Saves 64% tokens vs original.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Product ─── -->
+<section class="section" id="product">
+  <div class="section-inner">
+    <div class="section-header">
+      <div class="section-label"><span data-i18n="product.label">方案</span></div>
+      <h2 class="section-title" data-i18n="product.title">问题 vs 解决方案</h2>
+      <p class="section-desc" data-i18n="product.desc">WeChat 没有官方个人 bot API，逆向工程有封号风险。这个技能用官方渠道解决了问题。</p>
+    </div>
+    <div class="product-grid">
+      <div class="product-card reveal">
+        <div class="card-label problem">✕ <span data-i18n="product.problem_label">问题</span></div>
+        <h3 data-i18n="product.problem_title">WeChat 没有官方 Bot API</h3>
+        <p data-i18n="product.problem_desc">微信没有面向个人的官方 Bot API。逆向工程（如 ItChat、WeChatFerry）违反用户协议，轻则封号，重则法律风险。现有第三方方案部署复杂、维护困难，且缺乏 AI-native 协议支持。</p>
+      </div>
+      <div class="product-card reveal">
+        <div class="card-label solution">✓ <span data-i18n="product.solution_label">解决方案</span></div>
+        <h3 data-i18n="product.solution_title">官方 iLink Bot API + AI-Native 协议</h3>
+        <p data-i18n="product.solution_desc">此 Hermes Agent 技能使用官方 iLink Bot API，通过 QR 码配对安全连接个人微信。AI-native 协议处理 AI 无法完成的操作（扫码、发送测试消息等）。双门授权机制提供精细的访问控制，context_token 机制防止静默投递失败。无需逆向工程，安全合规。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Workflow ─── -->
+<section class="section" id="workflow">
+  <div class="section-inner">
+    <div class="section-header">
+      <div class="section-label"><span data-i18n="workflow.label">流程</span></div>
+      <h2 class="section-title" data-i18n="workflow.title">快速上手</h2>
+      <p class="section-desc" data-i18n="workflow.desc">5 步完成从安装到验证</p>
+    </div>
+    <div class="workflow-list">
+      <div class="workflow-step reveal">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <div class="step-title" data-i18n="workflow.step1.title">安装依赖</div>
+          <div class="step-desc" data-i18n="workflow.step1.desc">安装 Python 依赖包 aiohttp 和 cryptography</div>
+          <div class="step-code">pip install aiohttp cryptography</div>
+        </div>
+      </div>
+      <div class="workflow-step reveal">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <div class="step-title" data-i18n="workflow.step2.title">初始化网关</div>
+          <div class="step-desc" data-i18n="workflow.step2.desc">运行 hermes gateway setup，AI 会展示 QR URL，用户手机扫码完成配对</div>
+          <div class="step-code">hermes gateway setup</div>
+        </div>
+      </div>
+      <div class="workflow-step reveal">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-title" data-i18n="workflow.step3.title">提取 Account ID 并配置 .env</div>
+          <div class="step-desc" data-i18n="workflow.step3.desc">从 setup 输出中提取 account_id，写入 HERMES_HOME/.env 文件</div>
+          <div class="step-code">echo "WEIXIN_ACCOUNT_ID=&lt;account_id&gt;" &gt;&gt; $HERMES_HOME/.env</div>
+        </div>
+      </div>
+      <div class="workflow-step reveal">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <div class="step-title" data-i18n="workflow.step4.title">配置授权策略</div>
+          <div class="step-desc" data-i18n="workflow.step4.desc">设置 DM 策略和允许用户列表，控制谁能与 AI 对话</div>
+          <div class="step-code">echo "WEIXIN_DM_POLICY=allowlist" &gt;&gt; $HERMES_HOME/.env<br />echo "WEIXIN_ALLOWED_USERS=&lt;user_id&gt;" &gt;&gt; $HERMES_HOME/.env</div>
+        </div>
+      </div>
+      <div class="workflow-step reveal">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <div class="step-title" data-i18n="workflow.step5.title">启动并验证</div>
+          <div class="step-desc" data-i18n="workflow.step5.desc">启动网关，等待 3 秒后检查日志确认连接正常</div>
+          <div class="step-code">hermes gateway start<br />sleep 3 &amp;&amp; grep "gateway" $HERMES_HOME/logs/*.log</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── QA / Review History ─── -->
+<section class="section" id="qa">
+  <div class="section-inner">
+    <div class="section-header">
+      <div class="section-label"><span data-i18n="qa.label">审查</span></div>
+      <h2 class="section-title" data-i18n="qa.title">审查历史</h2>
+      <p class="section-desc" data-i18n="qa.desc">7 轮跨模型审查，约 400 项改进，确保生产级质量</p>
+    </div>
+    <div class="stats-row">
+      <div class="stat-card reveal">
+        <div class="num">2</div>
+        <div class="label" data-i18n="qa.stat1_label">技能数量</div>
+        <div class="sub" data-i18n="qa.stat1_sub">持续增长中</div>
+      </div>
+      <div class="stat-card reveal">
+        <div class="num">7</div>
+        <div class="label" data-i18n="qa.stat2_label">审查轮次</div>
+        <div class="sub" data-i18n="qa.stat2_sub">跨模型全面覆盖</div>
+      </div>
+      <div class="stat-card reveal">
+        <div class="num">~400</div>
+        <div class="label" data-i18n="qa.stat3_label">改进项</div>
+        <div class="sub" data-i18n="qa.stat3_sub">死代码 · 边界条件 · 文档一致性</div>
+      </div>
+    </div>
+    <div class="qa-table-wrap reveal">
+      <table class="qa-table">
+        <thead>
+          <tr>
+            <th data-i18n="qa.th.round">轮次</th>
+            <th data-i18n="qa.th.model">模型</th>
+            <th data-i18n="qa.th.findings">发现</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>① Mixed</td>
+            <td>DeepSeek V4 Flash</td>
+            <td>~383 冗余行</td>
+          </tr>
+          <tr>
+            <td>② Mixed</td>
+            <td>DeepSeek V4 Flash</td>
+            <td>~12K tokens</td>
+          </tr>
+          <tr>
+            <td>③ AI-only</td>
+            <td>DeepSeek V4 Flash</td>
+            <td>方向反转</td>
+          </tr>
+          <tr>
+            <td>④ AI-only</td>
+            <td>DeepSeek V4 Flash</td>
+            <td>方向反转</td>
+          </tr>
+          <tr>
+            <td>⑤ Final</td>
+            <td>Agnes-2.0-Flash</td>
+            <td>2 个 P1-P2 调整</td>
+          </tr>
+          <tr>
+            <td>⑥ Cold start</td>
+            <td>DeepSeek V4 Pro</td>
+            <td>8 个问题</td>
+          </tr>
+          <tr>
+            <td>⑦ Family</td>
+            <td>Rina+Jove+Hebe</td>
+            <td>2 个遗留项</td>
+          </tr>
+          <tr class="round-final">
+            <td>总计</td>
+            <td>7 轮</td>
+            <td class="check">~400 改进 ✓</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Footer ─── -->
+<footer class="footer">
+  <p>
+    <span data-i18n="footer.copyright">Jove Rina © 2026 · ♥ ·</span>
+    &nbsp;
+    <a href="/">Jove Rina</a>
+    &nbsp;·&nbsp;
+    <a href="https://github.com/jove-rina/jove-hermes-skills">GitHub</a>
+    &nbsp;·&nbsp; CC0 1.0 Universal
+  </p>
+</footer>
+
+<script>
+/* Canvas Particles */
+const canvas=document.getElementById('canvas-bg');
+const ctx=canvas.getContext('2d');
+let W,H,particles=[],mouse={x:0,y:0};
+
+function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight}
+window.addEventListener('resize',resize);resize();
+
+class Particle{
+  constructor(){this.reset()}
+  reset(){
+    this.x=Math.random()*W;this.y=Math.random()*H;
+    this.size=Math.random()*2+1;
+    this.speedX=(Math.random()-.5)*.5;this.speedY=(Math.random()-.5)*.5;
+    this.opacity=Math.random()*.5+.1;
+    this.hue=250+Math.random()*60;
+  }
+  update(){
+    this.x+=this.speedX;this.y+=this.speedY;
+    const dx=mouse.x-this.x,dy=mouse.y-this.y,dist=Math.sqrt(dx*dx+dy*dy);
+    if(dist<150){const f=(150-dist)/150*.3;this.x-=dx/dist*f;this.y-=dy/dist*f}
+    if(this.x<0||this.x>W||this.y<0||this.y>H)this.reset();
+  }
+  draw(){
+    ctx.beginPath();ctx.arc(this.x,this.y,this.size,0,Math.PI*2);
+    ctx.fillStyle=`hsla(${this.hue},70%,70%,${this.opacity})`;
+    ctx.fill();
+  }
+}
+for(let i=0;i<80;i++)particles.push(new Particle());
+
+function drawLines(){
+  for(let i=0;i<particles.length;i++){
+    for(let j=i+1;j<particles.length;j++){
+      const dx=particles[i].x-particles[j].x,dy=particles[i].y-particles[j].y;
+      const dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist<180){
+        ctx.beginPath();ctx.moveTo(particles[i].x,particles[i].y);
+        ctx.lineTo(particles[j].x,particles[j].y);
+        ctx.strokeStyle=`hsla(260,60%,70%,${.06*(1-dist/180)})`;
+        ctx.lineWidth=.5;ctx.stroke();
+      }
+    }
+  }
+}
+function animate(){
+  ctx.clearRect(0,0,W,H);
+  particles.forEach(p=>{p.update();p.draw()});
+  drawLines();requestAnimationFrame(animate);
+}
+animate();
+document.addEventListener('mousemove',e=>{mouse.x=e.clientX;mouse.y=e.clientY});
+document.addEventListener('touchmove',e=>{const t=e.touches[0];mouse.x=t.clientX;mouse.y=t.clientY},{passive:true});
+
+/* Reveal */
+const obs=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('visible')});
+},{threshold:.15});
+document.querySelectorAll('.reveal,.focus-item,.product-card,.workflow-step,.stat-card,.qa-table-wrap').forEach(el=>obs.observe(el));
+
+/* I18N */
+function getSavedLang(){return localStorage.getItem('jove-lang')||'en'}
+let currentLang=getSavedLang();
+const dict={
+  zh:{
+    'nav.home':'首页',
+    'nav.features':'特性',
+    'nav.workflow':'流程',
+    'nav.qa':'审查',
+    'hero.title':'微信集成',
+    'hero.sub':'将 Hermes Agent 连接到个人微信 — 消息收发、多配置隔离与故障排查',
+    'install.title':'快速安装',
+    'install.step1':'添加 tap 源',
+    'install.step2':'安装 WeChat 集成技能',
+    'features.label':'特性',
+    'features.title':'核心特性',
+    'features.desc':'六大特性让 WeChat 集成安全、高效、易于管理',
+    'features.card1.title':'QR 码认证',
+    'features.card1.desc':'官方 iLink Bot API，无需逆向工程。QR 代理协议：AI 展示 URL，用户扫码即可配对。',
+    'features.card2.title':'双门授权',
+    'features.card2.desc':'策略门（环境变量）+ 路由门（channel_directory.json），诊断矩阵精确定位问题。',
+    'features.card3.title':'context_token 感知',
+    'features.card3.desc':'防止消息静默丢失：send_message 成功 ≠ 投递成功。实时连接 vs 一次性适配器。',
+    'features.card4.title':'多配置隔离',
+    'features.card4.desc':'每个 Hermes 配置文件使用独立的 WeChat 账号，机器人之间零干扰。',
+    'features.card5.title':'跨平台',
+    'features.card5.desc':'Linux / macOS / Windows Git Bash。所有平台命令一致。',
+    'features.card6.title':'Token 高效',
+    'features.card6.desc':'核心 SKILL.md 仅 4.3K tokens。FAQ 和占位表延迟加载。比原版节省 64% tokens。',
+    'product.label':'方案',
+    'product.title':'问题 vs 解决方案',
+    'product.desc':'WeChat 没有官方个人 bot API，逆向工程有封号风险。这个技能用官方渠道解决了问题。',
+    'product.problem_label':'问题',
+    'product.problem_title':'WeChat 没有官方 Bot API',
+    'product.problem_desc':'微信没有面向个人的官方 Bot API。逆向工程（如 ItChat、WeChatFerry）违反用户协议，轻则封号，重则法律风险。现有第三方方案部署复杂、维护困难，且缺乏 AI-native 协议支持。',
+    'product.solution_label':'解决方案',
+    'product.solution_title':'官方 iLink Bot API + AI-Native 协议',
+    'product.solution_desc':'此 Hermes Agent 技能使用官方 iLink Bot API，通过 QR 码配对安全连接个人微信。AI-native 协议处理 AI 无法完成的操作（扫码、发送测试消息等）。双门授权机制提供精细的访问控制，context_token 机制防止静默投递失败。无需逆向工程，安全合规。',
+    'workflow.label':'流程',
+    'workflow.title':'快速上手',
+    'workflow.desc':'5 步完成从安装到验证',
+    'workflow.step1.title':'安装依赖',
+    'workflow.step1.desc':'安装 Python 依赖包 aiohttp 和 cryptography',
+    'workflow.step2.title':'初始化网关',
+    'workflow.step2.desc':'运行 hermes gateway setup，AI 会展示 QR URL，用户手机扫码完成配对',
+    'workflow.step3.title':'提取 Account ID 并配置 .env',
+    'workflow.step3.desc':'从 setup 输出中提取 account_id，写入 HERMES_HOME/.env 文件',
+    'workflow.step4.title':'配置授权策略',
+    'workflow.step4.desc':'设置 DM 策略和允许用户列表，控制谁能与 AI 对话',
+    'workflow.step5.title':'启动并验证',
+    'workflow.step5.desc':'启动网关，等待 3 秒后检查日志确认连接正常',
+    'qa.label':'审查',
+    'qa.title':'审查历史',
+    'qa.desc':'7 轮跨模型审查，约 400 项改进，确保生产级质量',
+    'qa.stat1_label':'技能数量',
+    'qa.stat1_sub':'持续增长中',
+    'qa.stat2_label':'审查轮次',
+    'qa.stat2_sub':'跨模型全面覆盖',
+    'qa.stat3_label':'改进项',
+    'qa.stat3_sub':'死代码 · 边界条件 · 文档一致性',
+    'qa.th.round':'轮次',
+    'qa.th.model':'模型',
+    'qa.th.findings':'发现',
+    'footer.copyright':'Jove Rina © 2026 · ♥ ·',
+  },
+  en:{
+    'nav.home':'Home',
+    'nav.features':'Features',
+    'nav.workflow':'Workflow',
+    'nav.qa':'QA',
+    'hero.title':'WeChat Integration',
+    'hero.sub':'Connect Hermes Agent to personal WeChat — message send/receive, multi-profile isolation, and troubleshooting.',
+    'install.title':'Quick Install',
+    'install.step1':'Add the tap source',
+    'install.step2':'Install the WeChat Integration skill',
+    'features.label':'FEATURES',
+    'features.title':'Core Features',
+    'features.desc':'Six features make WeChat integration secure, efficient, and easy to manage',
+    'features.card1.title':'QR Code Auth',
+    'features.card1.desc':'Official iLink Bot API, no reverse engineering. QR proxy protocol: AI presents URL, user scans.',
+    'features.card2.title':'Two-Gate Auth',
+    'features.card2.desc':'Policy gate (env vars) + Routing gate (channel_directory.json), diagnosis matrix pinpoints issues.',
+    'features.card3.title':'context_token Awareness',
+    'features.card3.desc':'Prevents silent message drops: send_message success ≠ delivery. Live connection vs throwaway adapter.',
+    'features.card4.title':'Multi-Profile Isolation',
+    'features.card4.desc':'Each Hermes profile with its own WeChat account, zero interference between bots.',
+    'features.card5.title':'Cross-Platform',
+    'features.card5.desc':'Linux / macOS / Windows Git Bash. Same commands everywhere.',
+    'features.card6.title':'Token-Efficient',
+    'features.card6.desc':'Core SKILL.md is 4.3K tokens. FAQ and placeholder table lazy-loaded. Saves 64% tokens vs original.',
+    'product.label':'SOLUTION',
+    'product.title':'Problem vs Solution',
+    'product.desc':'WeChat has no official bot API for individuals. Reverse-engineering risks account ban. This skill uses official channels.',
+    'product.problem_label':'Problem',
+    'product.problem_title':'No Official WeChat Bot API',
+    'product.problem_desc':'WeChat has no official bot API for individuals. Reverse-engineering (ItChat, WeChatFerry) violates ToS — account bans at best, legal risk at worst. Existing third-party solutions are complex to deploy, hard to maintain, and lack AI-native protocol support.',
+    'product.solution_label':'Solution',
+    'product.solution_title':'Official iLink Bot API + AI-Native Protocol',
+    'product.solution_desc':'This Hermes Agent skill uses the official iLink Bot API with QR code pairing for secure personal WeChat connection. AI-native protocols handle what AI cannot do (scan QR, send test messages). Two-gate authorization provides fine-grained access control. context_token mechanism prevents silent delivery failures. No reverse engineering — safe and compliant.',
+    'workflow.label':'WORKFLOW',
+    'workflow.title':'Quick Start',
+    'workflow.desc':'5 steps from install to verification',
+    'workflow.step1.title':'Install Dependencies',
+    'workflow.step1.desc':'Install Python packages aiohttp and cryptography',
+    'workflow.step2.title':'Initialize Gateway',
+    'workflow.step2.desc':'Run hermes gateway setup — AI presents a QR URL, user scans with their phone to pair',
+    'workflow.step3.title':'Extract Account ID & Configure .env',
+    'workflow.step3.desc':'Extract account_id from setup output, write it to HERMES_HOME/.env',
+    'workflow.step4.title':'Set Authorization Policy',
+    'workflow.step4.desc':'Configure DM policy and allowed user list to control who can chat with the AI',
+    'workflow.step5.title':'Start & Verify',
+    'workflow.step5.desc':'Start the gateway, sleep 3 seconds, then grep logs to confirm connection',
+    'qa.label':'QA',
+    'qa.title':'Review History',
+    'qa.desc':'7 rounds of cross-model review, ~400 improvements, ensuring production quality',
+    'qa.stat1_label':'Skills',
+    'qa.stat1_sub':'Growing',
+    'qa.stat2_label':'Review Rounds',
+    'qa.stat2_sub':'Cross-model coverage',
+    'qa.stat3_label':'Improvements',
+    'qa.stat3_sub':'Dead code · Edge cases · Doc consistency',
+    'qa.th.round':'Round',
+    'qa.th.model':'Model',
+    'qa.th.findings':'Findings',
+    'footer.copyright':'Jove Rina © 2026 · ♥ ·',
+  }
+};
+
+function applyLang(lang){
+  currentLang=lang;
+  localStorage.setItem('jove-lang',lang);
+  document.documentElement.lang=lang==='zh'?'zh-CN':'en';
+  document.getElementById('langSelect').value=lang;
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const key=el.dataset.i18n;
+    if(dict[lang]&&dict[lang][key])el.innerHTML=dict[lang][key];
+  });
+}
+document.getElementById('langSelect').addEventListener('change',function(){applyLang(this.value)});
+applyLang(getSavedLang());
+
+/* Smooth scroll */
+document.querySelectorAll('a[href^="#"]').forEach(a=>{
+  a.addEventListener('click',e=>{
+    e.preventDefault();
+    const t=document.querySelector(a.getAttribute('href'));
+    if(t)t.scrollIntoView({behavior:'smooth'});
+  });
+});
+</script>
+</body>
+</html>

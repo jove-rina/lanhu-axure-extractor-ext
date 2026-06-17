@@ -9,7 +9,10 @@ import { isExtensionContextValid } from './utils/extension-context';
 export function getFrameContext(): FrameContext {
   try {
     if (window.top === window.self) return 'top';
-    return window.parent.location.hostname.includes('lanhuapp') ? 'lanhu-iframe' : 'unknown-iframe';
+    const host = window.parent.location.hostname;
+    if (host.includes('lanhuapp')) return 'lanhu-iframe';
+    if (host.includes('mockplus')) return 'mockplus-iframe';
+    return 'unknown-iframe';
   } catch {
     return 'cross-origin-iframe';
   }

@@ -64,6 +64,6 @@ export interface NavPickerResultData {
   navPathLength?: number;
 }
 
-export type FrameContext = 'top' | 'lanhu-iframe' | 'unknown-iframe' | 'cross-origin-iframe';
+export type FrameContext = 'top' | 'lanhu-iframe' | 'mockplus-iframe' | 'unknown-iframe' | 'cross-origin-iframe';
 
 export type MdCmd = 'bold' | 'italic' | 'link' | 'heading' | 'list' | 'code';
